@@ -187,11 +187,6 @@ VariantMap TextureConverter::convertResource(IConverterSettings *settings) {
         texture.m_Filtering = Texture::FilteringType(s->filtering());
         texture.m_Wrap      = Texture::WrapType(s->wrap());
 
-        if(!texture.m_Width || !texture.m_Height) {
-            //tgaReader(settings, img);
-            //return 1;
-        }
-
         QList<QImage> sides;
         if(texture.isCubemap()) {
             QList<QPoint> positions;

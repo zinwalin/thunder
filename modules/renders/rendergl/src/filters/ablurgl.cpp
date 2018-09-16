@@ -4,7 +4,12 @@
 
 #include "commandbuffergl.h"
 
-ABlurGL::ABlurGL() {
+ABlurGL::ABlurGL() :
+        u_Steps(-1),
+        u_Size(-1),
+        u_Curve(-1),
+        u_Direction(-1) {
+
     m_pBlurMaterial     = Engine::loadResource<AMaterialGL>(".embedded/Blur.frag");
     if(m_pBlurMaterial) {
 /*

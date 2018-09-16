@@ -88,6 +88,8 @@ Texture::Texture() :
         m_Type(Flat),
         m_Filtering(None),
         m_Wrap(Clamp),
+        m_Width(1),
+        m_Height(1),
         m_pRoot(nullptr) {
     setShape({ Vector2(0.0f), Vector2(0.0f, 1.0f), Vector2(1.0f), Vector2(1.0f, 0.0f) });
 }

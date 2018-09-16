@@ -486,6 +486,7 @@ void Object::connect(Object *sender, const char *signal, Object *receiver, const
 void Object::disconnect(Object *sender, const char *signal, Object *receiver, const char *method) {
     PROFILE_FUNCTION()
     if(sender && !sender->p_ptr->m_lRecievers.empty()) {
+        unique_lock<mutex> eraseLocker(sender->p_ptr->m_Mutex);
         for(auto snd = sender->p_ptr->m_lRecievers.begin(); snd != sender->p_ptr->m_lRecievers.end(); ) {
             Link *data = &(*snd);
 
@@ -494,17 +495,15 @@ void Object::disconnect(Object *sender, const char *signal, Object *receiver, co
                     if(receiver == nullptr || data->receiver == receiver) {
                         if(method == nullptr || (receiver && data->method == receiver->metaObject()->indexOfMethod(&method[1]))) {
 
+                            unique_lock<mutex> receiverLocker(data->receiver->p_ptr->m_Mutex);
                             for(auto rcv = data->receiver->p_ptr->m_lSenders.begin(); rcv != data->receiver->p_ptr->m_lSenders.end(); ) {
                                 if(*rcv == *data) {
-                                    unique_lock<mutex> locker(data->receiver->p_ptr->m_Mutex);
                                     rcv = data->receiver->p_ptr->m_lSenders.erase(rcv);
                                 } else {
                                     rcv++;
                                 }
                             }
-                            unique_lock<mutex> locker(sender->p_ptr->m_Mutex);
                             snd = sender->p_ptr->m_lRecievers.erase(snd);
-
                             continue;
                         }
                     }
