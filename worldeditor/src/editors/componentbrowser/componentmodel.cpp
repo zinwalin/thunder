@@ -6,9 +6,23 @@
 
 #define URI "uri"
 
+ComponentModel *ComponentModel::m_pInstance   = nullptr;
+
 ComponentModel::ComponentModel() :
         BaseObjectModel(nullptr),
         m_pEngine(nullptr) {
+}
+
+ComponentModel *ComponentModel::instance() {
+    if(!m_pInstance) {
+        m_pInstance = new ComponentModel;
+    }
+    return m_pInstance;
+}
+
+void ComponentModel::destroy() {
+    delete m_pInstance;
+    m_pInstance = nullptr;
 }
 
 void ComponentModel::init(Engine *engine) {
@@ -17,7 +31,7 @@ void ComponentModel::init(Engine *engine) {
     update();
 }
 
-int ComponentModel::columnCount(const QModelIndex &parent) const {
+int ComponentModel::columnCount(const QModelIndex &) const {
     return 3;
 }
 
@@ -65,7 +79,7 @@ void ComponentModel::update() {
         int i   = 0;
         for(const auto& part : list) {
             QObject *p  = item;
-            item        = 0;
+            item = nullptr;
             foreach(QObject *it, p->children()) {
                 if(part == it->objectName()) {
                     item    = it;

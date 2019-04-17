@@ -4,18 +4,16 @@
 #include "basemesh.h"
 
 class NEXT_LIBRARY_EXPORT SpriteMesh : public BaseMesh {
-    A_REGISTER(SpriteMesh, BaseMesh, Components);
+    A_REGISTER(SpriteMesh, BaseMesh, Components)
 
     A_PROPERTIES(
         A_PROPERTY(MateralArray, Material, SpriteMesh::materials, SpriteMesh::setMaterials),
         A_PROPERTY(Texture*, Texture, SpriteMesh::texture, SpriteMesh::setTexture)
-    );
-    A_NOMETHODS();
+    )
+    A_NOMETHODS()
 
 public:
-    SpriteMesh                   ();
-
-    void                        draw                (ICommandBuffer &buffer, int8_t layer);
+    SpriteMesh                  ();
 
     Vector2                     center              () const;
 

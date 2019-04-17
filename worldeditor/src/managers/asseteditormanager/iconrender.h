@@ -8,6 +8,7 @@
 class Engine;
 class Scene;
 class Actor;
+class Camera;
 
 class IController;
 class ISystem;
@@ -18,11 +19,13 @@ class QOpenGLFramebufferObject;
 
 class IconRender : public QObject {
 public:
-    IconRender                  (Engine *engine, QOpenGLContext *share, QObject *parent = 0);
+    IconRender                  (Engine *engine, QOpenGLContext *share, QObject *parent = nullptr);
 
     ~IconRender                 ();
 
-    const QImage                render              (const QString &resource, uint8_t type);
+    void                        init                ();
+
+    const QImage                render              (const QString &resource, uint32_t type);
 
 protected:
 
@@ -34,15 +37,17 @@ protected:
 
     Engine                     *m_pEngine;
 
-    ISystem                    *m_pRender;
-
     Scene                      *m_pScene;
 
-    Actor                      *m_pCamera;
+    Actor                      *m_pActor;
 
     Actor                      *m_pLight;
 
     IController                *m_pController;
+
+    Camera                     *m_pCamera;
+
+    bool                        m_Init;
 };
 
 #endif // ICONRENDER_H

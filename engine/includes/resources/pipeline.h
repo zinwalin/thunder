@@ -21,18 +21,18 @@ class RenderTexture;
 class PostProcessor;
 
 class NEXT_LIBRARY_EXPORT Pipeline : public Object {
-    A_REGISTER(Pipeline, Object, Resources);
+    A_REGISTER(Pipeline, Object, Resources)
 
 public:
     Pipeline                    ();
 
     virtual ~Pipeline           ();
 
-    virtual void                draw                (Scene &scene, uint32_t resource);
+    virtual void                draw                (Scene *scene, Camera &camera);
 
     virtual void                resize              (uint32_t width, uint32_t height);
 
-    void                        cameraReset         ();
+    void                        cameraReset         (Camera &camera);
 
     RenderTexture              *target              (const string &target) const;
 
@@ -40,32 +40,40 @@ public:
 
     MaterialInstance           *sprite              () const;
 
+    void                        combineComponents   (Object *object, bool first = false);
+
+    void                        setTarget           (uint32_t resource);
+
 protected:
-    void                        drawComponents      (uint32_t layer);
+    void                        drawComponents      (uint32_t layer, ObjectList &list);
 
-    void                        combineComponents   (Object &object);
+    void                        updateShadows       (Camera &camera, Object *object);
 
-    void                        updateShadows       (Object &object);
-
-    void                        directUpdate        (DirectLight *light);
+    void                        directUpdate        (Camera &camera, DirectLight *light);
 
     RenderTexture              *postProcess         (RenderTexture &source);
+
+    ObjectList                  frustumCulling      (ObjectList &in, const array<Vector3, 8> &frustum);
+
+    void                        sortByDistance      (ObjectList &in, const Vector3 &origin);
 
 protected:
     typedef map<string, RenderTexture *> TargetMap;
 
     ICommandBuffer             *m_Buffer;
 
+    ObjectList                  m_Components;
+
     TargetMap                   m_Targets;
 
     Vector2                     m_Screen;
-
-    list<Component *>           m_ComponentList;
 
     list<PostProcessor *>       m_PostEffects;
 
     Mesh                       *m_pPlane;
     MaterialInstance           *m_pSprite;
+
+    uint32_t                    m_Target;
 };
 
 #endif // APIPELINE

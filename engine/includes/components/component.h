@@ -7,30 +7,37 @@ class Actor;
 class ICommandBuffer;
 
 class NEXT_LIBRARY_EXPORT Component : public Object {
-    A_REGISTER(Component, Object, Components);
+    A_REGISTER(Component, Object, General)
 
     A_PROPERTIES (
         A_PROPERTY(bool, Enable, Component::isEnable, Component::setEnable)
-    );
-    A_NOMETHODS();
+    )
+    A_METHODS(
+        A_METHOD(Actor *, Component::actor)
+    )
 
 public:
     Component                   ();
 
-    virtual void                start                   ();
-
-    virtual void                update                  ();
-
     virtual void                draw                    (ICommandBuffer &buffer, int8_t layer);
 
-    Actor                      &actor                   () const;
+    Actor                      *actor                   () const;
 
     bool                        isEnable                () const;
 
     void                        setEnable               (bool enable);
 
+    bool                        isStarted               () const;
+
+    void                        setStarted              (bool started);
+
+protected:
+    bool                        isSerializable          () const;
+
 protected:
     bool                        m_Enable;
+
+    bool                        m_Started;
 
 };
 

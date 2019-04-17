@@ -3,7 +3,6 @@
 
 #include "iplatformadaptor.h"
 
-class Log;
 struct GLFWwindow;
 struct GLFWmonitor;
 
@@ -27,11 +26,11 @@ public:
 
     bool                        key                         (Input::KeyCode code);
 
-    Vector3                     mousePosition               ();
+    Vector4                     mousePosition               ();
 
-    Vector3                     mouseDelta                  ();
+    Vector4                     mouseDelta                  ();
 
-    uint8_t                     mouseButtons                ();
+    uint32_t                    mouseButtons                ();
 
     uint32_t                    screenWidth                 ();
 
@@ -39,13 +38,13 @@ public:
 
     void                        setMousePosition            (const Vector3 &position);
 
-    uint16_t                    joystickCount               ();
+    uint32_t                    joystickCount               ();
 
-    uint16_t                    joystickButtons             (uint8_t index);
+    uint32_t                    joystickButtons             (uint32_t index);
 
-    Vector4                     joystickThumbs              (uint8_t index);
+    Vector4                     joystickThumbs              (uint32_t index);
 
-    Vector2                     joystickTriggers            (uint8_t index);
+    Vector2                     joystickTriggers            (uint32_t index);
 
     void                       *pluginLoad                  (const char *name);
 
@@ -69,9 +68,11 @@ protected:
 
     uint8_t                     m_MouseButtons;
 
-    static Vector3              s_MouseDelta;
+    static Vector4              s_MousePosition;
 
-    static Vector3              s_MousePosition;
+    static Vector4              s_OldMousePosition;
+
+    static Vector2              s_Screen;
 };
 
 #endif // DESKTOPAADAPTOR_H

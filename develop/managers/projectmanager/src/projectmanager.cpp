@@ -11,15 +11,16 @@
 #include "config.h"
 
 const QString gCompany("Company");
-const QString gQBS("QBS");
 const QString gProject("ProjectId");
+
+ProjectManager *ProjectManager::m_pInstance   = nullptr;
 
 ProjectManager::ProjectManager() {
     QDir dir(QCoreApplication::applicationDirPath());
     dir.cdUp();
     dir.cdUp();
     dir.cdUp();
-#if __APPLE__
+#if defined(__APPLE__)
     dir.cdUp();
     dir.cdUp();
     dir.cdUp();
@@ -28,10 +29,20 @@ ProjectManager::ProjectManager() {
     m_SDKPath       = QFileInfo(dir.absolutePath());
     m_ResourcePath  = QFileInfo(sdkPath() + "/resources");
     m_TemplatePath  = QFileInfo(resourcePath() + "/editor/templates");
-    m_QBSPath       = QFileInfo("qbs");
-    m_QBSDefault    = m_QBSPath;
 
     m_MyProjectsPath    = QFileInfo(dir.absolutePath());
+}
+
+ProjectManager *ProjectManager::instance() {
+    if(!m_pInstance) {
+        m_pInstance = new ProjectManager;
+    }
+    return m_pInstance;
+}
+
+void ProjectManager::destroy() {
+    delete m_pInstance;
+    m_pInstance = nullptr;
 }
 
 void ProjectManager::init(const QString &project, const QString &target) {
@@ -63,10 +74,6 @@ void ProjectManager::init(const QString &project, const QString &target) {
     dir.mkpath(m_PluginsPath.absoluteFilePath());
 }
 
-void ProjectManager::setQbsPath(const QString &path) {
-    m_QBSPath   = path;
-}
-
 void ProjectManager::loadSettings() {
     QFile file(m_ProjectPath.absoluteFilePath());
     if(file.open(QIODevice::ReadOnly)) {
@@ -87,10 +94,6 @@ void ProjectManager::loadSettings() {
                     }
                     property.write(this, value);
                 }
-            }
-            QJsonValue value    = object.value(gQBS);
-            if(!value.isUndefined()) {
-                setQbsPath(value.toString());
             }
 
             QJsonObject::iterator it    = object.find(gProject);
@@ -124,10 +127,6 @@ void ProjectManager::saveSettings() {
     }
     object[gProject]    = QJsonValue(m_ProjectId);
 
-    QString qbs = qbsPath();
-    if(m_QBSDefault != qbs) {
-        object[gQBS]    = qbs;
-    }
     doc.setObject(object);
 
     QFile file(m_ProjectPath.absoluteFilePath());

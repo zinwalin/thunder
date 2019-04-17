@@ -14,7 +14,7 @@ class NextObject : public QObject {
     Q_PROPERTY(QString Name READ name WRITE setName DESIGNABLE true USER true)
 
 public:
-    explicit                    NextObject              (Object *data, ObjectCtrl *ctrl, QObject *parent = 0);
+    explicit                    NextObject              (Object *data, ObjectCtrl *ctrl, QObject *parent = nullptr);
 
     QString                     name                    ();
     void                        setName                 (const QString &name);
@@ -29,9 +29,12 @@ public slots:
     void                        onUpdated               ();
 
 signals:
+    void                        changed                 ();
     void                        changed                 (Object *object, const QString &property);
 
     void                        updated                 ();
+
+    void                        deleteComponent         (const QString &name);
 
 protected slots:
     void                        onDeleteComponent       ();

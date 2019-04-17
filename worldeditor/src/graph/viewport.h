@@ -22,10 +22,12 @@ signals:
 
     void                    drop                (QDropEvent *);
     void                    dragEnter           (QDragEnterEvent *);
+    void                    dragMove            (QDragMoveEvent *);
     void                    dragLeave           (QDragLeaveEvent *);
 
 protected:
     void                    dragEnterEvent      (QDragEnterEvent *);
+    void                    dragMoveEvent       (QDragMoveEvent *);
     void                    dragLeaveEvent      (QDragLeaveEvent *);
     void                    dropEvent           (QDropEvent *);
 
@@ -39,7 +41,7 @@ protected:
     void                    keyReleaseEvent     (QKeyEvent *);
 
 private:
-    void                    findCamera          () {}
+    void                    findCamera          ();
 
     ICommandBuffer         *m_pCommandBuffer;
 

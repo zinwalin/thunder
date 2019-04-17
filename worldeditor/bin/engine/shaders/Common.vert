@@ -1,29 +1,26 @@
-uniform struct Camera {
+layout(location = 6) uniform struct Camera {
     mat4    mvpi;
     vec4    position;
     vec4    target;
     vec4    screen;
 } camera;
 
-uniform struct Light {
+layout(location = 10) uniform struct Light {
     mat4    matrix[6];
     vec4    tiles[6];
     vec4    color;
     vec4    lod;
     vec4    map;
-    vec4    position;
-    float   bias;
+    vec4    params; // x - brightness, y - radius, z - cutoff
+    vec3    position;
+    vec3    direction;
     float   ambient;
-    float   brightness;
-    float   radius;
+    float   bias;
     float   shadows;
 } light;
 
 struct Params {
-    vec2    uv;
-    vec3    project;
     vec3    reflect;
-    vec4    color;
     vec3    normal;
     float   time;
 } params;

@@ -1,18 +1,18 @@
 #ifndef AUDIOSOURCE_H
 #define AUDIOSOURCE_H
 
-#include <components/component.h>
+#include <components/nativebehaviour.h>
 
 #include "resources/audioclip.h"
 
-class NEXT_LIBRARY_EXPORT AudioSource : public Component {
-    A_REGISTER(AudioSource, Component, Components);
+class AudioSource : public NativeBehaviour {
+    A_REGISTER(AudioSource, NativeBehaviour, Components)
 
     A_PROPERTIES (
         A_PROPERTY(AudioClip *, Audio_Clip, AudioSource::clip, AudioSource::setClip),
         A_PROPERTY(bool, Auto_Play, AudioSource::autoPlay, AudioSource::setAutoPlay),
         A_PROPERTY(bool, Loop, AudioSource::loop, AudioSource::setLoop)
-    );
+    )
 
 public:
     AudioSource                 ();

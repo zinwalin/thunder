@@ -5,6 +5,11 @@
 #include <QMessageBox>
 #include <QSettings>
 
+#include <QQmlContext>
+#include <QQuickItem>
+
+#include <QWidgetAction>
+
 #include <engine.h>
 #include <components/actor.h>
 #include <components/transform.h>
@@ -12,33 +17,33 @@
 #include <components/directlight.h>
 #include <components/camera.h>
 
-#include "common.h"
+#include <global.h>
 #include "json.h"
 
 #include "editors/propertyedit/nextobject.h"
 #include "controllers/objectctrl.h"
 #include "graph/sceneview.h"
 
-#include "materialconverter.h"
-
 #include "shaderbuilder.h"
 
 #include "functionmodel.h"
+
+#include "editors/componentbrowser/componentbrowser.h"
 
 MaterialEdit::MaterialEdit(Engine *engine) :
         QMainWindow(nullptr),
         IAssetEditor(engine),
         ui(new Ui::MaterialEdit),
-        m_pMaterial(nullptr),
         m_pMesh(nullptr),
         m_pLight(nullptr),
-        m_pEditor(nullptr),
-        m_pBuilder(nullptr) {
+        m_pMaterial(nullptr),
+        m_pBuilder(new ShaderBuilder()),
+        m_pEditor(nullptr) {
 
     ui->setupUi(this);
 
-    glWidget    = new Viewport(this);
-    CameraCtrl *ctrl    = new CameraCtrl(glWidget);
+    glWidget = new Viewport(this);
+    CameraCtrl *ctrl = new CameraCtrl(glWidget);
     ctrl->blockMovement(true);
     ctrl->setFree(false);
     glWidget->setController(ctrl);
@@ -50,7 +55,7 @@ MaterialEdit::MaterialEdit(Engine *engine) :
     ui->textEdit->setWindowTitle("Source Code");
     ui->schemeWidget->setWindowTitle("Scheme");
 
-    connect(glWidget, SIGNAL(inited()), this, SLOT(onGLInit()));
+    connect(glWidget, SIGNAL(inited()), this, SLOT(onGLInit()), Qt::DirectConnection);
     startTimer(16);
 
     ui->centralwidget->addToolWindow(ui->schemeWidget, QToolWindowManager::EmptySpaceArea);
@@ -67,13 +72,28 @@ MaterialEdit::MaterialEdit(Engine *engine) :
         action->setChecked(true);
         connect(action, SIGNAL(triggered(bool)), this, SLOT(onToolWindowActionToggled(bool)));
     }
-
-    m_pBuilder  = new ShaderBuilder();
     ui->components->setModel(m_pBuilder->components());
 
     connect(ui->centralwidget, SIGNAL(toolWindowVisibilityChanged(QWidget *, bool)), this, SLOT(onToolWindowVisibilityChanged(QWidget *, bool)));
     connect(m_pBuilder, SIGNAL(schemeUpdated()), this, SLOT(onUpdateTemplate()));
-    connect(ui->schemeWidget, SIGNAL(nodeSelected(void*)), this, SLOT(onNodeSelected(void*)));
+
+    ui->schemeWidget->rootContext()->setContextProperty("schemeModel", m_pBuilder);
+    ui->schemeWidget->rootContext()->setContextProperty("stateMachine", QVariant(false));
+    ui->schemeWidget->setSource(QUrl("qrc:/QML/qml/SchemeEditor.qml"));
+
+    //ui->schemeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    QQuickItem *item = ui->schemeWidget->rootObject();
+    connect(item, SIGNAL(nodeSelected(int)), this, SLOT(onNodeSelected(int)));
+
+    m_pBrowser  = new ComponentBrowser(this);
+    m_pBrowser->setModel(m_pBuilder->components());
+    connect(m_pBrowser, SIGNAL(componentSelected(QString)), this, SLOT(onComponentSelected(QString)));
+
+    m_pCreateMenu = new QMenu(this);
+    m_pAction = new QWidgetAction(m_pCreateMenu);
+    m_pAction->setDefaultWidget(m_pBrowser);
+    m_pCreateMenu->addAction(m_pAction);
 
     readSettings();
 }
@@ -91,7 +111,7 @@ MaterialEdit::~MaterialEdit() {
 }
 
 void MaterialEdit::timerEvent(QTimerEvent *) {
-    glWidget->update();
+    glWidget->repaint();
 }
 
 void MaterialEdit::readSettings() {
@@ -139,10 +159,8 @@ void MaterialEdit::loadAsset(IConverterSettings *settings) {
         }
         m_pBuilder->load(m_Path);
 
-        onUpdateTemplate(false);
-
-        ui->schemeWidget->setModel(m_pBuilder);
-        onNodeSelected(m_pBuilder);
+        setModified(false);
+        onNodeSelected(0);
     }
 }
 
@@ -175,31 +193,43 @@ void MaterialEdit::changeMesh(const string &path) {
 
 void MaterialEdit::onGLInit() {
     Scene *scene    = glWidget->scene();
-    if(scene) {
-        scene->setAmbient(0.25f);
-    }
 
-    m_pLight    = Engine::createActor("LightSource", scene);
+    m_pLight    = Engine::objectCreate<Actor>("LightSource", scene);
     Matrix3 rot;
     rot.rotate(Vector3(-45.0f, 45.0f, 0.0f));
     m_pLight->transform()->setRotation(rot);
     m_pLight->addComponent<DirectLight>();
 
-    CameraCtrl *controller  = static_cast<CameraCtrl *>(glWidget->controller());
-    Camera *camera  = controller->activeCamera();
+    Camera *camera  = Camera::current();
     if(camera) {
-        camera->setColor(Vector4(0.3, 0.3, 0.3, 1.0));
+        camera->setColor(Vector4(0.2f, 0.2f, 0.2f, 1.0f));
     }
 
-    m_pMesh     = Engine::createActor("StaticMesh", scene);
+    m_pMesh     = Engine::objectCreate<Actor>("StaticMesh", scene);
     m_pMesh->addComponent<StaticMesh>();
 
     on_actionSphere_triggered();
 }
 
-void MaterialEdit::onNodeSelected(void *node) {
-    QObject *o  = static_cast<QObject *>(node);
-    ui->treeView->setObject(o);
+
+void MaterialEdit::onComponentSelected(const QString &path) {
+    m_pCreateMenu->hide();
+
+    QQuickItem *ptr = ui->schemeWidget->rootObject()->findChild<QQuickItem *>("Canvas");
+    if(ptr) {
+        AbstractSchemeModel::Node *node = m_pBuilder->createNode(path);
+        if(node) {
+            node->pos = QPoint(ptr->property("mouseX").toInt(), ptr->property("mouseY").toInt());
+            m_pBuilder->schemeUpdated();
+        }
+    }
+}
+
+void MaterialEdit::onNodeSelected(int index) {
+    const AbstractSchemeModel::Node *node = m_pBuilder->node(index);
+    if(node) {
+        ui->treeView->setObject(static_cast<QObject *>(node->ptr));
+    }
 }
 
 void MaterialEdit::on_actionPlane_triggered() {
@@ -253,4 +283,8 @@ void MaterialEdit::onToolWindowVisibilityChanged(QWidget *toolWindow, bool visib
         action->setChecked(visible);
         action->blockSignals(false);
     }
+}
+
+void MaterialEdit::on_schemeWidget_customContextMenuRequested(const QPoint &) {
+    m_pCreateMenu->exec(QCursor::pos());
 }

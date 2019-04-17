@@ -85,13 +85,13 @@ void SchemeEditor::draw(QPainter &painter, const QRect &r) {
         painter.translate(mTranslate.x(), mTranslate.y());
         painter.scale(mZoom, mZoom);
 
-        const AbstractSchemeModel::LinkList &links   = m_pModel->links();
-        const AbstractSchemeModel::NodeList &nodes   = m_pModel->nodes();
+        const AbstractSchemeModel::LinkList &links   = m_pModel->getLinks();
+        const AbstractSchemeModel::NodeList &nodes   = m_pModel->getNodes();
 
         for(auto it : links) {
             QColor color(255, 255, 255, 0);
 
-            if(m_pFocusItem == it->sitem || m_pFocusItem == it->ritem) {
+            if(m_pFocusItem == it->oport || m_pFocusItem == it->iport) {
                 color   = QColor(255, 255, 0);
             } else {
                 color   = QColor(255, 0, 0);
@@ -136,10 +136,10 @@ void SchemeEditor::draw(QPainter &painter, const QRect &r) {
 }
 
 void SchemeEditor::select(const QPoint &pos) {
-    m_pFocusNode    = 0;
-    m_pFocusItem    = 0;
+    m_pFocusNode    = nullptr;
+    m_pFocusItem    = nullptr;
 
-    AbstractSchemeModel::NodeList &nodes    = m_pModel->nodes();
+    AbstractSchemeModel::NodeList &nodes = m_pModel->getNodes();
     for(auto it : nodes) {
         hitNode(it, pos);
     }
@@ -157,7 +157,7 @@ void SchemeEditor::setModel(AbstractSchemeModel *model) {
     repaint();
 }
 
-void SchemeEditor::on_customContextMenuRequested(const QPoint &pos) {
+void SchemeEditor::on_customContextMenuRequested(const QPoint &) {
     if(!m_bCameraMove) {
         m_pCreateMenu->exec(QCursor::pos());
     }
@@ -255,10 +255,10 @@ void SchemeEditor::mouseReleaseEvent(QMouseEvent *pe) {
 
         drag    = false;
         if(m_pNode != m_pFocusNode) {
-            m_pNode = 0;
+            m_pNode = nullptr;
             emit nodeSelected(m_pModel);
         }
-        m_pItem = 0;
+        m_pItem = nullptr;
     }
 
     if(pe->button() == Qt::RightButton) {
@@ -327,8 +327,8 @@ void SchemeEditor::drawLink(QPainter &painter, const QColor &color, const Abstra
     QRect rect1 = calcRect(link->sender);
     QRect rect2 = calcRect(link->receiver);
 
-    Vector2 b(rect1.x() + rect1.width(), rect1.y() + itemPos(link->sitem) + mFontStride);
-    Vector2 e(rect2.x(), rect2.y() + itemPos(link->ritem) + mFontStride);
+    Vector2 b(rect1.x() + rect1.width(), rect1.y() + itemPos(link->oport) + mFontStride);
+    Vector2 e(rect2.x(), rect2.y() + itemPos(link->iport) + mFontStride);
 
     int lenght  = abs(e.x - b.x) * 0.5;
 
@@ -458,8 +458,8 @@ QRect SchemeEditor::calcRect(const AbstractSchemeModel::Node *node) {
 }
 
 void SchemeEditor::hitNode(AbstractSchemeModel::Node *node, const QPoint &pos) {
-    QPoint p((node->pos.x() * mZoom + mTranslate.x() + mRect.width() * 0.5),
-             (node->pos.y() * mZoom + mTranslate.y() + mRect.height() * 0.5) );
+    QPoint p((node->pos.x() * mZoom + mTranslate.x() + mRect.width() * 0.5f),
+             (node->pos.y() * mZoom + mTranslate.y() + mRect.height() * 0.5f) );
 
     QRect rect  = calcRect(node);
 
@@ -489,5 +489,5 @@ void SchemeEditor::hitNode(AbstractSchemeModel::Node *node, const QPoint &pos) {
 }
 
 int SchemeEditor::itemPos(const AbstractSchemeModel::Item *item) {
-    return (mFontOffset * 1.25) + item->pos * mFontOffset;
+    return (mFontOffset * 1.25f) + item->pos * mFontOffset;
 }

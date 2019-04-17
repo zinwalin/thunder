@@ -2,6 +2,7 @@
 
 #include <QDialog>
 #include <QSurfaceFormat>
+#include <QOpenGLContext>
 
 #include <stdio.h>
 
@@ -10,17 +11,29 @@
 #include "editors/scenecomposer/scenecomposer.h"
 
 #include "assetmanager.h"
-#include "codemanager.h"
 #include "projectmanager.h"
 #include <engine.h>
 
-#include "common.h"
+#include <global.h>
 #include "qlog.h"
 
 #include <QDesktopServices>
 #include <QUrl>
 
 #include "managers/projectmanager/projectdialog.h"
+
+#include "pluginmodel.h"
+
+#include "editors/textureedit/textureedit.h"
+#include "editors/materialedit/materialedit.h"
+#include "editors/meshedit/meshedit.h"
+#include "editors/particleedit/particleedit.h"
+#include "editors/animationedit/animationedit.h"
+
+#include "editors/componentbrowser/componentmodel.h"
+#include "editors/contentbrowser/contentlist.h"
+
+#include "managers/asseteditormanager/importqueue.h"
 
 int main(int argc, char *argv[]) {
     QSurfaceFormat format;
@@ -58,20 +71,45 @@ int main(int argc, char *argv[]) {
         file->finit(qPrintable(QApplication::arguments().at(0)));
         file->fsearchPathAdd(qPrintable(mgr->importPath()), true);
 
+        Log::setLogLevel(Log::DBG);
+
         Engine engine(file, argc, argv);
         engine.init();
+        engine.reloadBundle();
+        Log::overrideHandler(new QLog());
+
+        PluginModel *plugin = PluginModel::instance();
+
+        plugin->init(&engine);
+        plugin->rescan();
+
+        QApplication::connect(plugin, SIGNAL(updated()), ComponentModel::instance(), SLOT(update()));
+
+        AssetManager *asset = AssetManager::instance();
+        asset->addEditor(IConverter::ContentTexture, new TextureEdit(&engine));
+        asset->addEditor(IConverter::ContentMaterial, new MaterialEdit(&engine));
+        asset->addEditor(IConverter::ContentMesh, new MeshEdit(&engine));
+        asset->addEditor(IConverter::ContentEffect, new ParticleEdit(&engine));
+        asset->addEditor(IConverter::ContentAnimationStateMachine, new AnimationEdit(&engine));
+
+        ImportQueue queue(&engine);
+        QApplication::connect(&queue, SIGNAL(rendered(QString)), ContentList::instance(), SLOT(onRendered(QString)));
 
         SceneComposer w(&engine);
-        QApplication::connect(AssetManager::instance(), SIGNAL(importFinished()), &w, SLOT(show()));
+        QApplication::connect(&queue, &ImportQueue::finished, &w, &SceneComposer::show);
 
-        CodeManager::instance()->init();
-        AssetManager::instance()->init();
+        asset->init(&engine);
         UndoManager::instance()->init();
 
+        ComponentModel::instance()->init(&engine);
+        ContentList::instance()->init(&engine);
+
         result  = a.exec();
+
+        asset->destroy();
+        plugin->destroy();
     }
     UndoManager::destroy();
     AssetManager::destroy();
-    CodeManager::destroy();
     return result;
 }

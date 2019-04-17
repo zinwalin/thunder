@@ -30,9 +30,9 @@ AudioSource::~AudioSource() {
 }
 
 void AudioSource::update() {
-    Actor &a    = actor();
+    Actor *a    = actor();
 
-    alSourcefv(m_ID, AL_POSITION,   a.transform()->worldPosition().v);
+    alSourcefv(m_ID, AL_POSITION,   a->transform()->worldPosition().v);
 
     if(m_pClip && m_pClip->isStream()) {
         int processed;
@@ -40,8 +40,8 @@ void AudioSource::update() {
 
         switch(processed) {
             case 1: {
-                int offset;
-                alGetSourcei(m_ID, AL_SAMPLE_OFFSET , &offset);
+                int32_t offset;
+                alGetSourcei(m_ID, AL_SAMPLE_OFFSET, &offset);
                 m_PositionSamples  += offset;
 
                 alSourceUnqueueBuffers(m_ID, 1, &m_Buffers[m_Current]);

@@ -1,21 +1,29 @@
 #ifndef PATHEDIT_H
 #define PATHEDIT_H
 
-#include <QLineEdit>
-#include <QToolButton>
+#include <QWidget>
+#include <QFileInfo>
 
-class PathEdit : public QLineEdit {
+namespace Ui {
+    class PathEdit;
+}
+
+class PathEdit : public QWidget {
     Q_OBJECT
 public:
-    explicit PathEdit   (QWidget *parent = 0);
+    explicit PathEdit(QWidget *parent = nullptr);
+
+    QString data() const;
+    void setData(const QString &v);
 
 signals:
-    void                openFileDlg         ();
+    void pathChanged(const QFileInfo &info);
+
+private slots:
+    void onFileDialog();
 
 private:
-    void                resizeEvent         (QResizeEvent *event);
-
-    QToolButton        *mToolBtn;
+    Ui::PathEdit     *ui;
 };
 
 #endif // PATHEDIT_H

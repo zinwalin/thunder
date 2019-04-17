@@ -8,8 +8,10 @@ class AnimConverter : public IConverter {
 public:
     AnimConverter               () {}
 
-    string                      format                      () const { return "anim"; }
+    QStringList                 suffixes                    () const { return {"anim"}; }
+    uint32_t                    contentType                 () const { return ContentAnimation; }
     uint32_t                    type                        () const { return MetaType::type<AnimationClip *>(); }
+
     uint8_t                     convertFile                 (IConverterSettings *s);
 };
 

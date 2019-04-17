@@ -1,9 +1,12 @@
 #include "resources/arendertexturegl.h"
 
+#include "agl.h"
+
 ARenderTextureGL::ARenderTextureGL() :
         m_Buffer(0),
         m_ID(0) {
-
+    m_Width = 1;
+    m_Height = 1;
 }
 
 ARenderTextureGL::~ARenderTextureGL() {
@@ -60,10 +63,9 @@ void ARenderTextureGL::apply() {
             internal    = GL_RGB10_A2;
             type        = GL_UNSIGNED_INT_10_10_10_2;
 #else
-            //internal    = GL_RGB10_A2_EXT;
-            //type        = GL_UNSIGNED_INT_10_10_10_2_OES;
+            internal    = GL_RGB10_A2;
+            type        = GL_UNSIGNED_INT_2_10_10_10_REV;
 #endif
-            format      = GL_RGBA;
         } break;
         case R11G11B10Float: {
             internal    = GL_R11F_G11F_B10F;
@@ -77,9 +79,12 @@ void ARenderTextureGL::apply() {
 
     if(m_DepthBits) {
         format  = GL_DEPTH_COMPONENT;
-        type    = GL_FLOAT;
+        type    = GL_UNSIGNED_INT;
 
         switch(m_DepthBits) {
+            case 16: {
+                internal    = GL_DEPTH_COMPONENT16;
+            } break;
             case 24: {
                 internal    = GL_DEPTH_COMPONENT24;
             } break;
@@ -89,17 +94,16 @@ void ARenderTextureGL::apply() {
 
     if(target == GL_TEXTURE_CUBE_MAP) {
         for(int i = 0; i < 6; i++) {
-            glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, internal, m_Width, m_Height, 0, format, type, 0 );
+            glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, internal, m_Width, m_Height, 0, format, type, nullptr );
         }
     } else {
-        glTexImage2D    ( target, 0, internal, m_Width, m_Height, 0, format, type, 0 );
+        glTexImage2D    ( target, 0, internal, m_Width, m_Height, 0, format, type, nullptr );
     }
-
 }
 
 void ARenderTextureGL::makeCurrent(uint32_t index) const {
     if(index == 0) {
         glBindFramebuffer(GL_FRAMEBUFFER, m_Buffer);
     }
-    glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index, GL_TEXTURE_2D, m_ID, 0 );
+    glFramebufferTexture2D( GL_FRAMEBUFFER, (m_DepthBits) ? GL_DEPTH_ATTACHMENT : GL_COLOR_ATTACHMENT0 + index, GL_TEXTURE_2D, m_ID, 0 );
 }

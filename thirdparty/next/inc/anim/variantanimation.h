@@ -3,16 +3,12 @@
 
 #include "animation.h"
 
-#include "keyframe.h"
+#include "animationcurve.h"
 
 class VariantAnimationPrivate;
 
 class NEXT_LIBRARY_EXPORT VariantAnimation : public Animation {
     A_REGISTER(VariantAnimation, Animation, Animation)
-
-public:
-
-    typedef list<KeyFrame>          Curve;
 
 public:
     VariantAnimation                ();
@@ -24,14 +20,14 @@ public:
     Variant                         currentValue                () const;
     virtual void                    setCurrentValue             (const Variant &value);
 
-    Curve                          &keyFrames                   () const;
-    void                            setKeyFrames                (Curve &frames);
+    AnimationCurve                 &curve                       (int32_t component = 0) const;
+    void                            setCurve                    (AnimationCurve &curve, int32_t component = 0);
 
-protected:
-    void                            update                      ();
+    void                            setCurrentTime              (uint32_t msecs) override;
 
 private:
     VariantAnimationPrivate        *p_ptr;
+
 };
 
 #endif // VARIANTANIMATION_H

@@ -10,23 +10,13 @@
 #define MATERIAL    "Material"
 #define BASEMAP     "BaseMap"
 
+#define OVERRIDE "uni.texture0"
+
 SpriteMesh::SpriteMesh() {
     m_Center    = Vector2();
     m_Texture   = nullptr;
     m_Materials.push_back(nullptr);
     m_pMesh     = Engine::loadResource<Mesh>(".embedded/plane.fbx");
-}
-
-void SpriteMesh::draw(ICommandBuffer &buffer, int8_t layer) {
-    Actor &a    = actor();
-    if(layer & (ICommandBuffer::RAYCAST | ICommandBuffer::DEFAULT | ICommandBuffer::TRANSLUCENT | ICommandBuffer::SHADOWCAST | ICommandBuffer::UI)) {
-        if(layer & ICommandBuffer::RAYCAST) {
-            buffer.setColor(ICommandBuffer::idToColor(a.uuid()));
-        }
-
-        buffer.drawMesh(a.transform()->worldTransform(), m_pMesh, 0, layer, m_Materials[0]);
-        buffer.setColor(Vector4(1.0f));
-    }
 }
 
 Vector2 SpriteMesh::center() const {
@@ -44,7 +34,7 @@ Texture *SpriteMesh::texture() const {
 void SpriteMesh::setTexture(Texture *texture) {
     m_Texture   = texture;
     if(m_Materials[0]) {
-        m_Materials[0]->setTexture("texture0", m_Texture);
+        m_Materials[0]->setTexture(OVERRIDE, m_Texture);
     }
 }
 

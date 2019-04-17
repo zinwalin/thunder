@@ -1,6 +1,7 @@
 #include "core/objectsystem.h"
 
 #include "core/object.h"
+#include "core/invalid.h"
 #include "core/uri.h"
 #include "core/bson.h"
 #include "core/json.h"
@@ -11,20 +12,9 @@ static random_device rd;
 static mt19937 mt(rd());
 static uniform_int_distribution<uint32_t> dist(0, UINT32_MAX);
 
-class ObjectSystemPrivate {
-public:
-    ObjectSystemPrivate() {
+static ObjectSystem::FactoryMap s_Factories;
+static ObjectSystem::GroupMap   s_Groups;
 
-    }
-
-    /// Container for registered callbacks.
-    ObjectSystem::FactoryMap    m_Factories;
-    ObjectSystem::GroupMap      m_Groups;
-
-    static ObjectSystem        *s_Instance;
-};
-
-ObjectSystem *ObjectSystemPrivate::s_Instance    = nullptr;
 /*!
     \class ObjectSystem
     \brief The ObjectSystem responds for object management.
@@ -69,32 +59,45 @@ ObjectSystem *ObjectSystemPrivate::s_Instance    = nullptr;
     \sa factoryAdd(), factoryRemove()
 */
 /*!
-    Constructs ObjectSystem with \a name.
-    \note There can be only one instance of Object System per application. (semi singleton)
+    Constructs ObjectSystem.
 */
-ObjectSystem::ObjectSystem(const string &name) :
-        p_ptr(new ObjectSystemPrivate()) {
-    PROFILE_FUNCTION()
-    if(ObjectSystemPrivate::s_Instance != nullptr) {
-        throw "There should be only one ObjectSystem object";
-    }
-    ObjectSystemPrivate::s_Instance   = this;
-    setName(name);
+ObjectSystem::ObjectSystem() {
+    PROFILE_FUNCTION();
 }
-
+/*!
+    Destructs ObjectSystem, related objects and registered object factories.
+*/
 ObjectSystem::~ObjectSystem() {
-    PROFILE_FUNCTION()
-    factoryClear();
-    ObjectSystemPrivate::s_Instance   = nullptr;
+    PROFILE_FUNCTION();
+
+    {
+        auto it = s_Factories.begin();
+        while(it != s_Factories.end()) {
+            FactoryPair &pair = it->second;
+            if(pair.second == this) {
+                s_Groups.erase(pair.first->name());
+                it = s_Factories.erase(it);
+                continue;
+            }
+            it++;
+        }
+    }
+    {
+        auto it = m_List.begin();
+        while(it != m_List.end()) {
+            delete *it;
+            it = m_List.begin();
+        }
+    }
 }
 
 /*!
-    Returns a singe instance of ObjectSystem.
-    \note Can return nullptr in case of ObjectSystem isn't initialized yet.
+    Updates all related objects.
 */
-ObjectSystem *ObjectSystem::instance() {
-    PROFILE_FUNCTION()
-    return ObjectSystemPrivate::s_Instance;
+void ObjectSystem::update() {
+    for(auto it : m_List) {
+        it->processEvents();
+    }
 }
 /*!
     Returns new instance of type represented in \a uri and \a name as child of \a parent object.
@@ -103,53 +106,65 @@ ObjectSystem *ObjectSystem::instance() {
     \sa factoryAdd(), factoryRemove()
 */
 Object *ObjectSystem::objectCreate(const string &uri, const string &name, Object *parent) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
+
     Object *object  = nullptr;
 
-    ObjectSystem *inst = instance();
-    FactoryMap::iterator it = inst->p_ptr->m_Factories.find(uri);
-    if(it == inst->p_ptr->m_Factories.end()) {
-        it  = inst->p_ptr->m_Factories.find(inst->p_ptr->m_Groups[uri]);
-    }
-    if(it != inst->p_ptr->m_Factories.end()) {
-        object = (*it).second->createInstance();
+    FactoryPair *pair = metaFactory(uri);
+    if(pair) {
+        const MetaObject *meta  = pair->first;
+
+        object = meta->createInstance();
         object->setName(name);
         object->setParent(parent);
-        object->setUUID(generateUID());
+        object->setSystem(pair->second);
+
+        pair->second->m_List.push_back(object);
     }
     return object;
 }
 
+void ObjectSystem::processObject(Object *object) {
+    PROFILE_FUNCTION();
+    object->processEvents();
+}
+
 void ObjectSystem::factoryAdd(const string &name, const string &uri, const MetaObject *meta) {
-    PROFILE_FUNCTION()
-    p_ptr->m_Groups[name]   = uri;
-    p_ptr->m_Factories[uri] = meta;
+    PROFILE_FUNCTION();
+    s_Groups[name]   = uri;
+    s_Factories[uri] = FactoryPair(meta, this);
 }
 
 void ObjectSystem::factoryRemove(const string &name, const string &uri) {
-    PROFILE_FUNCTION()
-    p_ptr->m_Groups.erase(name);
-    p_ptr->m_Factories.erase(uri);
-}
-/*!
-    Removes all factories from the system.
-*/
-void ObjectSystem::factoryClear() {
-    PROFILE_FUNCTION()
-    p_ptr->m_Factories.clear();
+    PROFILE_FUNCTION();
+    s_Groups.erase(name);
+    s_Factories.erase(uri);
 }
 /*!
     Returns all registered classes.
 */
 ObjectSystem::GroupMap ObjectSystem::factories() const {
-    PROFILE_FUNCTION()
-    return p_ptr->m_Groups;
+    PROFILE_FUNCTION();
+    return s_Groups;
+}
+/*!
+    Returns MetaObject for registered factory by provided \a uri.
+*/
+ObjectSystem::FactoryPair *ObjectSystem::metaFactory(const string &uri) {
+    PROFILE_FUNCTION();
+    FactoryMap::iterator it = s_Factories.find(uri);
+    if(it == s_Factories.end()) {
+        it  = s_Factories.find(s_Groups[uri]);
+    }
+    if(it != s_Factories.end()) {
+        return &((*it).second);
+    }
+    return nullptr;
 }
 
-typedef list<const Object *>    ObjectArray;
-
+typedef list<const Object *> ObjectArray;
 void enumObjects(const Object *object, ObjectArray &list) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     list.push_back(object);
     for(const auto &it : object->getChildren()) {
         enumObjects(it, list);
@@ -164,58 +179,18 @@ void enumObjects(const Object *object, ObjectArray &list) {
     Developers is able to save own data using Object::saveUserData() mechanism.
 */
 Variant ObjectSystem::toVariant(const Object *object) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     VariantList result;
 
-    ObjectArray array;
-    enumObjects(object, array);
+    ObjectArray list;
+    enumObjects(object, list);
 
-    for(auto it : array) {
+    for(auto it : list) {
         // Save Object
-        int uuid    = int(it->uuid());
-
-        VariantList o;
-        o.push_back(uuid);
-        Object *parent = it->parent();
-        o.push_back(int((parent) ? parent->uuid() : 0));
-        o.push_back(it->typeName());
-        o.push_back(it->name());
-
-        // Save base properties
-        VariantMap properties;
-        const MetaObject *meta = it->metaObject();
-        for(int i = 0; i < meta->propertyCount(); i++) {
-            MetaProperty p = meta->property(i);
-            if(p.isValid()) {
-                Variant v  = p.read(it);
-                if(v.userType() < MetaType::USERTYPE) {
-                    properties[p.name()] = v;
-                }
-            }
+        if(!it->isSerializable()) {
+            continue;
         }
-
-        // Save links
-        VariantList links;
-        for(const auto &l : it->getReceivers()) {
-            VariantList link;
-
-            Object *sender  = l.sender;
-
-            link.push_back(int(sender->uuid()));
-            MetaMethod method  = sender->metaObject()->method(l.signal);
-            link.push_back(Variant(char(method.type() + 0x30) + method.signature()));
-
-            link.push_back(uuid);
-            method      = it->metaObject()->method(l.method);
-            link.push_back(Variant(char(method.type() + 0x30) + method.signature()));
-
-            links.push_back(link);
-        }
-        o.push_back(properties);
-        o.push_back(links);
-        o.push_back(it->saveUserData());
-
-        result.push_back(o);
+        result.push_back(it->saveData());
     }
 
     return result;
@@ -225,8 +200,8 @@ Variant ObjectSystem::toVariant(const Object *object) {
     The Variant representation can be loaded from BSON or JSON formats or retrieved from memory.
     Deserialization will try to restore objects hierarchy, its properties and connections.
 */
-Object *ObjectSystem::toObject(const Variant &variant) {
-    PROFILE_FUNCTION()
+Object *ObjectSystem::toObject(const Variant &variant, Object *root) {
+    PROFILE_FUNCTION();
     Object *result  = nullptr;
 
     typedef unordered_map<uint32_t, Object *> ObjectMap;
@@ -238,15 +213,15 @@ Object *ObjectSystem::toObject(const Variant &variant) {
         VariantList o  = it.value<VariantList>();
         if(o.size() >= 5) {
             auto i          = o.begin();
+            string type = (*i).toString();
+            i++;
             uint32_t uuid   = (*i).toInt();
             i++;
-            Object *parent  = nullptr;
+            Object *parent  = root;
             auto a  = array.find((*i).toInt());
             if(a != array.end()) {
                 parent  = (*a).second;
             }
-            i++;
-            string type = (*i).toString();
             i++;
             string name = (*i).toString();
             i++;
@@ -254,10 +229,8 @@ Object *ObjectSystem::toObject(const Variant &variant) {
             Object *object  = objectCreate(type, name, parent);
             if(object) {
                 object->setUUID(uuid);
-                if(!object->parent()) {
-                    result  = object;
-                }
                 array[uuid] = object;
+
                 // Load base properties
                 for(const auto &it : (*i).toMap()) {
                     Variant v  = it.second;
@@ -297,6 +270,21 @@ Object *ObjectSystem::toObject(const Variant &variant) {
                 i++;
                 // Load user data
                 object->loadUserData((*i).value<VariantMap>());
+            } else {
+                // Create a dummy object to keep all fields
+                Invalid *invalid = new Invalid();
+                invalid->loadData(o);
+                object = invalid;
+
+                object->setUUID(uuid);
+                object->setName(name);
+                object->setParent(parent);
+
+                array[uuid] = object;
+            }
+
+            if(object->parent() == root) {
+                result  = object;
             }
         }
     }
@@ -307,5 +295,18 @@ Object *ObjectSystem::toObject(const Variant &variant) {
     Returns the new unique ID based on random number generator.
 */
 uint32_t ObjectSystem::generateUID() {
+    PROFILE_FUNCTION();
     return dist(mt);
+}
+
+void ObjectSystem::removeObject(Object *object) {
+    PROFILE_FUNCTION();
+    auto it = m_List.begin();
+    while(it != m_List.end()) {
+        if(*it == object) {
+            m_List.erase(it);
+            return;
+        }
+        it++;
+    }
 }

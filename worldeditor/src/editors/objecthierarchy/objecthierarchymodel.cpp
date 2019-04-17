@@ -11,7 +11,14 @@ ObjectHierarchyModel::ObjectHierarchyModel(QObject *parent) :
         m_Visible(QPixmap(":/Images/fontawesome/eye.png")),
         m_Invisible() {
 
+    startTimer(1000);
+}
 
+void ObjectHierarchyModel::timerEvent(QTimerEvent *) {
+    if(Engine::isGameMode()) {
+        emit layoutAboutToBeChanged();
+        emit layoutChanged();
+    }
 }
 
 void ObjectHierarchyModel::setRoot(Object *scene) {
@@ -128,8 +135,11 @@ QModelIndex ObjectHierarchyModel::parent(const QModelIndex &index) const {
         return QModelIndex();
     }
     QList<Object *> list;
-    for(auto it : parentItem->parent()->getChildren()) {
-        list.push_back(it);
+    Object *p   = parentItem->parent();
+    if(p) {
+        for(auto it : p->getChildren()) {
+            list.push_back(it);
+        }
     }
     return createIndex(list.indexOf(parentItem), 0, parentItem);
 }

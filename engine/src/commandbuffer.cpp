@@ -15,10 +15,18 @@ void ICommandBuffer::drawMesh(const Matrix4 &model, Mesh *mesh, uint32_t surface
     A_UNUSED(material);
 }
 
-void ICommandBuffer::setRenderTarget(const TargetBuffer &target, const RenderTexture *depth, bool equal) {
+void ICommandBuffer::drawMeshInstanced(const Matrix4 *models, uint32_t count, Mesh *mesh, uint32_t surface, uint8_t layer, MaterialInstance *material, bool particle) {
+    A_UNUSED(models);
+    A_UNUSED(count);
+    A_UNUSED(mesh);
+    A_UNUSED(surface);
+    A_UNUSED(layer);
+    A_UNUSED(material);
+}
+
+void ICommandBuffer::setRenderTarget(const TargetBuffer &target, const RenderTexture *depth) {
     A_UNUSED(target);
     A_UNUSED(depth);
-    A_UNUSED(equal);
 }
 
 void ICommandBuffer::setRenderTarget(uint32_t target) {
@@ -41,6 +49,10 @@ void ICommandBuffer::setColor(const Vector4 &color) {
 
 void ICommandBuffer::setScreenProjection() {
     setViewProjection(Matrix4(), Matrix4::ortho(-0.5f, 0.5f,-0.5f, 0.5f, 0.0f, 1.0f));
+}
+
+void ICommandBuffer::resetViewProjection() {
+
 }
 
 void ICommandBuffer::setViewProjection(const Matrix4 &view, const Matrix4 &projection) {
@@ -71,7 +83,7 @@ const Texture *ICommandBuffer::texture(const char *name) const {
     return nullptr;
 }
 
-void ICommandBuffer::setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+void ICommandBuffer::setViewport(int32_t x, int32_t y, int32_t width, int32_t height) {
     A_UNUSED(x);
     A_UNUSED(y);
     A_UNUSED(width);

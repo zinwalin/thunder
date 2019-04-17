@@ -19,8 +19,8 @@ Project {
     property stringList incPaths: [
         "includes",
         "../../../common",
-        "../../../engine/includes",
         "../../../engine/includes/resources",
+        "../../../engine/includes",
         "../../../thirdparty/next/inc",
         "../../../thirdparty/next/inc/math",
         "../../../thirdparty/next/inc/core",
@@ -41,7 +41,7 @@ Project {
         Depends { name: "glad" }
         bundle.isBundle: false
 
-        cpp.defines: ["BUILD_SHARED", "NEXT_LIBRARY"]
+        cpp.defines: ["NEXT_SHARED"]
         cpp.includePaths: rendergl.incPaths
         cpp.cxxLanguageVersion: "c++14"
         cpp.minimumMacosVersion: "10.12"
@@ -61,7 +61,7 @@ Project {
             name: "Install Dynamic RenderGL"
             fileTagsFilter: ["dynamiclibrary", "dynamiclibrary_import"]
             qbs.install: true
-            qbs.installDir: rendergl.BIN_PATH + "/plugins/" + rendergl.bundle
+            qbs.installDir: rendergl.PLUGINS_PATH
             qbs.installPrefix: rendergl.PREFIX
         }
     }
@@ -86,7 +86,8 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("android")
-            Android.ndk.appStl: "gnustl_shared"
+            Android.ndk.appStl: "gnustl_static"
+            Android.ndk.platform: rendergl.ANDROID
         }
 
         Properties {

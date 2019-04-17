@@ -2,10 +2,13 @@
 
 #pragma flags
 
-#include ".embedded/Common.vert"
-#include ".embedded/BRDF.frag"
+#include "Common.vert"
 
-layout(location = 0) in vec3 _vertex;
+layout(location = 3) uniform vec4  t_color;
+layout(location = 4) uniform float _clip;
+layout(location = 5) uniform float _time;
+
+layout(location = 0) in vec4 _vertex;
 layout(location = 1) in vec2 _uv0;
 layout(location = 2) in vec2 _uv1;
 layout(location = 3) in vec3 _n;
@@ -14,11 +17,6 @@ layout(location = 5) in vec3 _b;
 layout(location = 6) in vec4 _color;
 
 layout(location = 7) in vec3 _view;
-layout(location = 8) in vec3 _proj;
-
-layout(location = 2) uniform vec4   t_color;
-layout(location = 3) uniform float _time;
-layout(location = 4) uniform float _clip;
 
 #pragma material
 
@@ -29,19 +27,10 @@ layout(location = 3) out vec4 gbuffer4;
 
 void simpleMode(Params params) {
     float alpha = getOpacity ( params );
-    if(_clip >= alpha) {
+    if(alpha <= _clip) {
         discard;
     }
     gbuffer1    = t_color;
-}
-
-void depthMode(Params params) {
-    float depth = gl_FragCoord.z;
-    float dx    = dFdx(depth);
-    float dy    = dFdy(depth);
-    float msqr  = depth * depth + 0.25 * (dx * dx + dy * dy);
-
-    gbuffer1    = vec4(depth, msqr, 0.0, 0.0);
 }
 
 void passMode(Params params) {
@@ -71,24 +60,22 @@ void passMode(Params params) {
 #endif
 }
 
+void lightMode(Params params) {
+    gbuffer1    = vec4( getEmissive( params ), 1.0 );
+}
+
 void main(void) {
-    params.uv       = _uv0;
-    params.project  = _proj;
+#ifdef SIMPLE
+    simpleMode(params);
+#elif LIGHT
+    lightMode(params);
+#else
     params.reflect  = vec3(0.0);
-    params.color    = _color;
     params.normal   = _n;
-#ifdef TANGENT
     params.normal   = 2.0 * getNormal( params ) - vec3( 1.0 );
     params.normal   = normalize( params.normal.x * _t + params.normal.y * _b + params.normal.z * _n );
-#endif
     params.reflect  = reflect( _view, params.normal );
-#ifdef SIMPLE
-    #ifdef DEPTH
-    depthMode(params);
-    #else
-    simpleMode(params);
-    #endif
-#else
+
     passMode(params);
 #endif
 }

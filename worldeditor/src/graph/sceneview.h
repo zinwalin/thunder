@@ -8,6 +8,7 @@
 #include <QPainter>
 
 #include <components/scene.h>
+#include <adapters/iplatformadaptor.h>
 #include "config.h"
 
 class Engine;
@@ -19,12 +20,10 @@ class CameraCtrl;
 class QOffscreenSurface;
 class QOpenGLFramebufferObject;
 
-
-
-class SceneView : public QOpenGLWidget {
+class SceneView : public QOpenGLWidget, public IPlatformAdaptor {
     Q_OBJECT
 public:
-    SceneView               (QWidget *parent = 0);
+    SceneView               (QWidget *parent = nullptr);
 
     ~SceneView              ();
 
@@ -33,14 +32,57 @@ public:
     void                    setScene            (Scene *scene);
     Scene                  *scene               ()              { return m_pScene; }
 
-    void                    setController       (IController *ctrl);
-    IController            *controller          () const        { return m_pController; }
+    void                    setController       (CameraCtrl *ctrl);
+    CameraCtrl             *controller          () const        { return m_pController; }
 
-    void                    startGame           ();
+public:
+    bool                    init                () { return true; }
 
-    void                    stopGame            ();
+    void                    update              () {}
 
-    bool                    isGame              () const;
+    bool                    start               () { return true; }
+
+    void                    stop                () {}
+
+    void                    destroy             () {}
+
+    bool                    isValid             () { return true; }
+
+    bool                    key                 (Input::KeyCode) { return false; }
+
+    Vector4                 mousePosition       () {
+        QPoint p    = mapFromGlobal(QCursor::pos());
+        return Vector4(p.x(), p.y(),
+                       (float)p.x() / width(), (float)p.y() / height());
+    }
+
+    Vector4                 mouseDelta          () { return Vector4(); }
+
+    uint32_t                mouseButtons        () { return m_MouseButtons; }
+
+    uint32_t                screenWidth         () { return width(); }
+
+    uint32_t                screenHeight        () { return height(); }
+
+    void                    setMousePosition    (const Vector3 &position) {
+        QCursor::setPos(mapToGlobal(QPoint(position.x, position.y)));
+    }
+
+    uint32_t                joystickCount       () { return 0; }
+
+    uint32_t                joystickButtons     (uint32_t) { return 0; }
+
+    Vector4                 joystickThumbs      (uint32_t) { return Vector4(); }
+
+    Vector2                 joystickTriggers    (uint32_t) { return Vector2(); }
+
+    void                   *pluginLoad          (const char *) { return nullptr; }
+
+    bool                    pluginUnload        (void *) { return false; }
+
+    void                   *pluginAddress       (void *, const string &) { return nullptr; }
+
+    string                  locationLocalDir    () { return string(); }
 
 signals:
     void                    inited              ();
@@ -50,18 +92,19 @@ protected:
     void                    paintGL             ();
     void                    resizeGL            (int width, int height);
 
+    void                    mousePressEvent     (QMouseEvent *);
+    void                    mouseReleaseEvent   (QMouseEvent *);
+
 protected:
     virtual void            findCamera          ();
 
-    IController            *m_pController;
-
-    QList<ISystem *>        m_Systems;
+    CameraCtrl             *m_pController;
 
     Scene                  *m_pScene;
 
     QMenu                   m_RenderModeMenu;
 
-    bool                    m_GameMode;
+    int32_t                 m_MouseButtons;
 };
 
 #endif // SCENEVIEW_H

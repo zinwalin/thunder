@@ -5,6 +5,7 @@
 #include <QEvent>
 
 #include <object.h>
+#include <invalid.h>
 
 #include "custom/Vector3DProperty.h"
 #include "custom/ColorProperty.h"
@@ -16,10 +17,10 @@
 #include <engine.h>
 #include <components/component.h>
 #include <components/actor.h>
+#include <components/transform.h>
 #include <resources/material.h>
 #include <resources/mesh.h>
 #include <resources/font.h>
-#include <resources/audioclip.h>
 
 #include "assetmanager.h"
 
@@ -55,11 +56,14 @@ QVariant qVariant(Variant &v, const string &type) {
         }
         default: break;
     }
+    if(v.data() == nullptr) {
+        return QVariant();
+    }
     Object *o   = *(reinterpret_cast<Object **>(v.data()));
     return QVariant::fromValue(Template(Engine::reference(o).c_str(), v.userType()));
 }
 
-Variant aVariant(QVariant &v, int type) {
+Variant aVariant(QVariant &v, uint32_t type) {
     switch(type) {
         case MetaType::BOOLEAN: {
             return Variant(v.toBool());
@@ -71,9 +75,9 @@ Variant aVariant(QVariant &v, int type) {
             return Variant(v.toFloat());
         }
         case MetaType::STRING: {
-            if(v.canConvert<FilePath>()) {
-                FilePath p  = v.value<FilePath>();
-                return Variant(qUtf8Printable(p.path));
+            if(v.canConvert<QFileInfo>()) {
+                QFileInfo p  = v.value<QFileInfo>();
+                return Variant(qUtf8Printable(p.absoluteFilePath()));
             }
             if(v.canConvert<Template>()) {
                 Template p  = v.value<Template>();
@@ -91,7 +95,7 @@ Variant aVariant(QVariant &v, int type) {
                 return Variant(v);
             }
             return Variant(v.value<Vector4>());
-        } break;
+        }
         default: {
             Template p  = v.value<Template>();
             if(!p.path.isEmpty()) {
@@ -105,8 +109,8 @@ Variant aVariant(QVariant &v, int type) {
 
 NextObject::NextObject(Object *data, ObjectCtrl *ctrl, QObject *parent) :
         QObject(parent),
-        m_pController(ctrl),
-        m_pObject(data) {
+        m_pObject(data),
+        m_pController(ctrl) {
 
     onUpdated();
 }
@@ -127,19 +131,20 @@ void NextObject::setName(const QString &name) {
 
 QMenu *NextObject::menu(const QString &name) {
     QMenu *result   = nullptr;
-    Actor *actor    = dynamic_cast<Actor *>(m_pObject);
-    if(actor) {
-        Component *component    = actor->component(qPrintable(name));
-        if(component) {
-            result  = new QMenu();
 
-            QAction *del    = new QAction(tr("Remove Component"), this);
-            del->setProperty(COMPONENT, name);
-            result->addAction(del);
+    QStringList path(name.split(' ').first());
+    Object *obj = findChild(path);
 
-            connect(del, SIGNAL(triggered(bool)), this, SLOT(onDeleteComponent()));
-        }
+    if(obj == nullptr || dynamic_cast<Transform *>(obj) || dynamic_cast<Actor *>(obj)) {
+        return result;
     }
+
+    result = new QMenu();
+    QAction *del = new QAction(tr("Remove Component"), this);
+    del->setProperty(COMPONENT, obj->typeName().c_str());
+    result->addAction(del);
+
+    connect(del, SIGNAL(triggered(bool)), this, SLOT(onDeleteComponent()));
 
     return result;
 }
@@ -158,25 +163,7 @@ void NextObject::onUpdated() {
 }
 
 void NextObject::onDeleteComponent() {
-    QObject *snd    = sender();
-    QString name    = snd->property(COMPONENT).toString();
-    if(!name.isEmpty()) {
-        if(m_pObject) {
-            Actor *actor    = dynamic_cast<Actor *>(m_pObject);
-            if(actor) {
-                Component *component    = actor->component(qPrintable(name));
-                if(component) {
-                    if(m_pController) {
-                        Object::ObjectList list;
-                        list.push_back(component);
-                        UndoManager::instance()->push(new UndoManager::DestroyObjects(list, m_pController, tr("Remove Component ") + name));
-                    }
-                    onUpdated();
-
-                }
-            }
-        }
-    }
+    emit deleteComponent(sender()->property(COMPONENT).toString());
 }
 
 void NextObject::buildObject(Object *object, const QString &path) {
@@ -189,7 +176,7 @@ void NextObject::buildObject(Object *object, const QString &path) {
         if(data.userType() == MetaType::type<MaterialArray>()) {
             MaterialArray array = data.value<MaterialArray>();
             for(uint32_t i = 0; i < array.size(); i++) {
-                Variant v   = Variant::fromValue(array[i]->material());
+                Variant v = Variant::fromValue(array[i]->material());
                 blockSignals(true);
                 setProperty( qPrintable(name + "/Item" + QString::number(i)), qVariant(v, "") );
                 blockSignals(false);
@@ -201,7 +188,13 @@ void NextObject::buildObject(Object *object, const QString &path) {
         }
     }
     for(Object *it : object->getChildren()) {
-        if(dynamic_cast<Component *>(it)) {
+        Invalid *invalid = dynamic_cast<Invalid *>(it);
+        if(invalid) {
+            blockSignals(true);
+            invalid->setName(tr("%1 (Invalid)").arg(invalid->typeName().c_str()).toStdString());
+            setProperty( qPrintable((path.isEmpty() ? QString() : path + "/") + invalid->name().c_str() + QString("/")), QVariant(true) );
+            blockSignals(false);
+        } else if(dynamic_cast<Component *>(it)) {
             buildObject(it, (path.isEmpty() ? "" : path + "/") + QString::fromStdString(it->typeName()));
         }
     }
@@ -213,20 +206,18 @@ bool NextObject::event(QEvent *e) {
         QString name    = ev->propertyName();
         QVariant value  = property(qPrintable(name));
         if(value.isValid()) {
-            QStringList list    = name.split('/');
+            QStringList list = name.split('/');
             if(m_pObject) {
-                Object *o       = findChild(list);
+                Object *o = findChild(list);
                 Variant current = o->property(qPrintable(list.front()));
                 Variant target;
                 if(current.userType() == MetaType::type<MaterialArray>()) {
                     MaterialArray array = current.value<MaterialArray>();
-                    uint32_t id = name.mid(name.indexOf(QRegExp("[0-9]"))).toInt();
+                    uint32_t id = name.mid(name.indexOf(QRegExp("[0-9]"))).toUInt();
                     if(id < array.size()) {
-                        Material *m     = aVariant(value, MetaType::type<Material *>()).value<Material *>();
+                        Material *m = aVariant(value, MetaType::type<Material *>()).value<Material *>();
                         if(m) {
-                            MaterialInstance *inst  = array[id];
-                            delete inst;
-                            array[id]   = m->createInstance();
+                            array[id] = m->createInstance();
                         }
                     }
                     target  = Variant::fromValue(array);
@@ -242,6 +233,7 @@ bool NextObject::event(QEvent *e) {
                     o->setProperty(qPrintable(list.front()), target);
                     onUpdated();
 
+                    emit changed();
                     setChanged(o, list.front());
                 }
             }

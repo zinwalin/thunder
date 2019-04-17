@@ -1,8 +1,9 @@
 #ifndef AGL_H
 #define AGL_H
 
-#if THUNDER_MOBILE
+#if defined(THUNDER_MOBILE)
     #define GLFM_INCLUDE_ES3
+
     #include <glfm.h>
 #else
     #include <glad/glad.h>
@@ -11,5 +12,8 @@
 
 #define POLYGONS    "Polygons"
 #define DRAWCALLS   "Draw Calls"
+
+void _CheckGLError(const char *file, int line);
+#define CheckGLError() //_CheckGLError(__FILE__, __LINE__)
 
 #endif // AGL_H

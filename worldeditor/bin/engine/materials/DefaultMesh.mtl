@@ -1,10 +1,11 @@
 {
     "Blend": 0,
+    "Depth": true,
     "Links": [
         {
-            "RItem": "Roughness",
+            "IPort": 4,
             "Receiver": 0,
-            "SItem": "",
+            "OPort": 0,
             "Sender": 1
         }
     ],
@@ -19,5 +20,6 @@
             "Y": 0
         }
     ],
-    "Side": false
+    "Side": false,
+    "Type": 0
 }

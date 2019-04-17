@@ -61,7 +61,7 @@ TextureEdit::~TextureEdit() {
 }
 
 void TextureEdit::timerEvent(QTimerEvent *) {
-    ui->Preview->update();
+    ui->Preview->repaint();
 }
 
 void TextureEdit::readSettings() {
@@ -115,10 +115,10 @@ void TextureEdit::loadAsset(IConverterSettings *settings) {
         ui->treeView->setObject(m_pSettings);
     }
 
-    Camera *camera  = ui->Preview->controller()->activeCamera();
+    Camera *camera  = Camera::current();
     if(camera) {
-        camera->actor().transform()->setPosition(Vector3(0.0f, 0.0f, 1.0f));
-        camera->setOrthoWidth(SCALE);
+        camera->actor()->transform()->setPosition(Vector3(0.0f, 0.0f, 1.0f));
+        camera->setOrthoHeight(SCALE);
         camera->setFocal(SCALE);
     }
 }
@@ -131,12 +131,12 @@ void TextureEdit::onUpdateTemplate(bool update) {
 
 void TextureEdit::onGLInit() {
     Scene *scene    = ui->Preview->scene();
-    Camera *camera  = ui->Preview->controller()->activeCamera();
+    Camera *camera  = Camera::current();
     if(camera) {
         camera->setOrthographic(true);
     }
 
-    Actor *object   = Engine::createActor("Sprite", scene);
+    Actor *object   = Engine::objectCreate<Actor>("Sprite", scene);
     object->transform()->setScale(Vector3(SCALE));
     m_pSprite       = object->addComponent<SpriteMesh>();
     if(m_pSprite) {

@@ -4,46 +4,41 @@
 #include <QKeyEvent>
 #include <QDesktopWidget>
 #include <QDir>
+#include <QOpenGLContext>
 
 #include "assetmanager.h"
 #include "projectmanager.h"
-#include "codemanager.h"
 
 #include "iconrender.h"
 
-ImportQueue::ImportQueue(QWidget *parent) :
+ImportQueue::ImportQueue(Engine *engine, QWidget *parent) :
         QDialog(parent),
-        ui(new Ui::ImportQueue) {
+        ui(new Ui::ImportQueue),
+        m_pEngine(engine) {
     ui->setupUi(this);
 
-    AssetManager *manager   = AssetManager::instance();
+    AssetManager *manager = AssetManager::instance();
     connect(manager, SIGNAL(importStarted(int,QString)), this, SLOT(onStarted(int,QString)));
-    connect(manager, SIGNAL(imported(QString,uint8_t)), this, SLOT(onProcessed(QString,uint8_t)));
+    connect(manager, SIGNAL(imported(QString,uint32_t)), this, SLOT(onProcessed(QString,uint32_t)));
 
-    connect(manager, &AssetManager::importFinished, this, &ImportQueue::onFinished);
-    connect(manager, &AssetManager::importFinished, CodeManager::instance(), &CodeManager::buildProject);
+    connect(manager, &AssetManager::importFinished, this, &ImportQueue::onImportFinished);
 
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint);
 
     QRect r = QApplication::desktop()->screenGeometry();
     move(r.center() - rect().center());
 
-    m_pIconRender   = nullptr;
+    m_pRender = new IconRender(m_pEngine, QOpenGLContext::globalShareContext());
 }
 
 ImportQueue::~ImportQueue() {
     delete ui;
 }
 
-void ImportQueue::init(IconRender *render) {
-    m_pIconRender   = render;
-    renderIcons();
-}
-
-void ImportQueue::onProcessed(const QString &path, uint8_t type) {
+void ImportQueue::onProcessed(const QString &path, uint32_t type) {
     ui->progressBar->setValue(ui->progressBar->value() + 1);
 
-    QString guid    = QString::fromStdString(AssetManager::instance()->pathToGuid(path.toStdString()));
+    QString guid = QString::fromStdString(AssetManager::instance()->pathToGuid(path.toStdString()));
     m_UpdateQueue[guid] = type;
 }
 
@@ -54,33 +49,24 @@ void ImportQueue::onStarted(int count, const QString &action) {
     ui->label->setText(action);
 }
 
-void ImportQueue::onFinished() {
+void ImportQueue::onImportFinished() {
+    auto i = m_UpdateQueue.constBegin();
+    while(i != m_UpdateQueue.constEnd()) {
+        QImage image = m_pRender->render(i.key(), i.value());
+        if(!image.isNull()) {
+            image.save(ProjectManager::instance()->iconPath() + QDir::separator() + i.key() + ".png", "PNG");
+        }
+        emit rendered(i.key());
+        ++i;
+    }
+    m_UpdateQueue.clear();
+
     hide();
-
-    renderIcons();
-
     emit finished();
 }
 
 void ImportQueue::keyPressEvent(QKeyEvent *e) {
     if(e->key() == Qt::Key_Escape) {
         e->ignore();
-    }
-}
-
-void ImportQueue::renderIcons() {
-    QMap<QString, uint8_t>::const_iterator i    = m_UpdateQueue.constBegin();
-    while(i != m_UpdateQueue.constEnd()) {
-        if(m_pIconRender) {
-            QImage image    = m_pIconRender->render(i.key(), i.value());
-            if(!image.isNull()) {
-                image.save(ProjectManager::instance()->iconPath() + QDir::separator() + i.key() + ".png", "PNG");
-            }
-            emit rendered(i.key());
-        }
-        ++i;
-    }
-    if(m_pIconRender) {
-        m_UpdateQueue.clear();
     }
 }

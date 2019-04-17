@@ -14,19 +14,45 @@
 #include <file.h>
 #include <utils.h>
 
-Vector3 DesktopAdaptor::s_MouseDelta     = Vector3();
-Vector3 DesktopAdaptor::s_MousePosition  = Vector3();
+#include <mutex>
+#include <string.h>
 
-static Engine *g_pEngine   = nullptr;
+Vector4 DesktopAdaptor::s_MousePosition     = Vector4();
+Vector4 DesktopAdaptor::s_OldMousePosition  = Vector4();
+Vector2 DesktopAdaptor::s_Screen            = Vector2();
+
+static Engine *g_pEngine = nullptr;
+static IFile *g_pFile = nullptr;
+
+static string gAppConfig;
+
+class DesktopHandler : public ILogHandler {
+protected:
+    void            setRecord       (Log::LogTypes, const char *record) {
+        unique_lock<mutex> locker(m_Mutex);
+        _FILE *fp   = g_pFile->_fopen((gAppConfig + "/log.txt").c_str(), "a");
+        if(fp) {
+            g_pFile->_fwrite(record, strlen(record), 1, fp);
+            g_pFile->_fwrite("\n", 1, 1, fp);
+            g_pFile->_fclose(fp);
+        }
+    }
+
+    mutex           m_Mutex;
+};
 
 DesktopAdaptor::DesktopAdaptor(Engine *engine) :
         m_pWindow(nullptr),
         m_pMonitor(nullptr),
         m_MouseButtons(0) {
     g_pEngine   = engine;
+
 }
 
 bool DesktopAdaptor::init() {
+    gAppConfig  = g_pEngine->locationAppConfig();
+    g_pFile = g_pEngine->file();
+
     glfwSetErrorCallback(errorCallback);
 
     if(!glfwInit()) {
@@ -34,7 +60,7 @@ bool DesktopAdaptor::init() {
     }
 
     glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
@@ -46,13 +72,15 @@ bool DesktopAdaptor::init() {
         return false;
     }
 
+    const GLFWvidmode *mode = glfwGetVideoMode(m_pMonitor);
+    s_Screen = Vector2(mode->width, mode->height);
+
     return true;
 }
 
 void DesktopAdaptor::update() {
     glfwSwapBuffers(m_pWindow);
     glfwPollEvents();
-    s_MousePosition += s_MouseDelta;
 
     m_MouseButtons  = 0;
     for(uint8_t i = 0; i < 8; i++) {
@@ -63,6 +91,12 @@ void DesktopAdaptor::update() {
 }
 
 bool DesktopAdaptor::start() {
+    g_pFile->fsearchPathAdd(g_pEngine->locationConfig().c_str(), true);
+    g_pFile->_mkdir(g_pEngine->locationAppConfig().c_str());
+    g_pFile->fsearchPathAdd((g_pEngine->locationAppDir() + "/base.pak").c_str());
+
+    Log::overrideHandler(new DesktopHandler());
+
     const GLFWvidmode *mode = glfwGetVideoMode(m_pMonitor);
 
     m_pWindow   = glfwCreateWindow(mode->width, mode->height, "Thunder Engine", nullptr, nullptr); // m_pMonitor
@@ -95,33 +129,31 @@ bool DesktopAdaptor::key(Input::KeyCode code) {
     return (glfwGetKey(m_pWindow, code) == GLFW_PRESS);
 }
 
-Vector3 DesktopAdaptor::mousePosition() {
+Vector4 DesktopAdaptor::mousePosition() {
     return s_MousePosition;
 }
 
-Vector3 DesktopAdaptor::mouseDelta() {
-    return s_MouseDelta;
+Vector4 DesktopAdaptor::mouseDelta() {
+    return s_MousePosition - s_OldMousePosition;
 }
 
-uint8_t DesktopAdaptor::mouseButtons() {
+uint32_t DesktopAdaptor::mouseButtons() {
     return m_MouseButtons;
 }
 
 uint32_t DesktopAdaptor::screenWidth() {
-    const GLFWvidmode *mode = glfwGetVideoMode(m_pMonitor);
-    return mode->width;
+    return s_Screen.x;
 }
 
 uint32_t DesktopAdaptor::screenHeight() {
-    const GLFWvidmode *mode = glfwGetVideoMode(m_pMonitor);
-    return mode->height;
+    return s_Screen.y;
 }
 
 void DesktopAdaptor::setMousePosition(const Vector3 &position) {
     glfwSetCursorPos(m_pWindow, position.x, position.y);
 }
 
-uint16_t DesktopAdaptor::joystickCount() {
+uint32_t DesktopAdaptor::joystickCount() {
     uint16_t result  = 0;
     for(uint8_t i = 0; i <= GLFW_JOYSTICK_LAST; i++) {
         if(glfwJoystickPresent(GLFW_JOYSTICK_1 + i)) {
@@ -131,7 +163,7 @@ uint16_t DesktopAdaptor::joystickCount() {
     return result;
 }
 
-uint16_t DesktopAdaptor::joystickButtons(uint8_t index) {
+uint32_t DesktopAdaptor::joystickButtons(uint32_t index) {
     int count;
     const unsigned char *axes = glfwGetJoystickButtons(index, &count);
     uint16_t result = 0;
@@ -143,7 +175,7 @@ uint16_t DesktopAdaptor::joystickButtons(uint8_t index) {
     return result;
 }
 
-Vector4 DesktopAdaptor::joystickThumbs(uint8_t index) {
+Vector4 DesktopAdaptor::joystickThumbs(uint32_t index) {
     int count;
     const float *axes = glfwGetJoystickAxes(index, &count);
     if(count >= 4) {
@@ -152,7 +184,7 @@ Vector4 DesktopAdaptor::joystickThumbs(uint8_t index) {
     return Vector4();
 }
 
-Vector2 DesktopAdaptor::joystickTriggers(uint8_t index) {
+Vector2 DesktopAdaptor::joystickTriggers(uint32_t index) {
     int count;
     const float* axes = glfwGetJoystickAxes(index, &count);
     if(count >= 6) {
@@ -186,11 +218,12 @@ void *DesktopAdaptor::pluginAddress(void *plugin, const string &name) {
 }
 
 void DesktopAdaptor::scrollCallback(GLFWwindow *, double, double yoffset) {
-    s_MouseDelta    = Vector3(s_MouseDelta.x, s_MouseDelta.y, yoffset);
+    A_UNUSED(yoffset)
 }
 
 void DesktopAdaptor::cursorPositionCallback(GLFWwindow *, double xpos, double ypos) {
-    s_MouseDelta    = Vector3(xpos, ypos, s_MouseDelta.z);
+    s_OldMousePosition  = s_MousePosition;
+    s_MousePosition     = Vector4(xpos, ypos, xpos / s_Screen.x, ypos / s_Screen.y);
 }
 
 void DesktopAdaptor::errorCallback(int error, const char *description) {

@@ -1,32 +1,44 @@
 #ifndef ANIMATIONCONTROLLER_H
 #define ANIMATIONCONTROLLER_H
 
-#include "component.h"
+#include "nativebehaviour.h"
 
-class PropertyAnimation;
 class AnimationClip;
+class AnimationStateMachine;
 
-class NEXT_LIBRARY_EXPORT AnimationController : public Component {
-    A_REGISTER(AnimationController, Component, Components);
+class AnimationControllerPrivate;
+
+class NEXT_LIBRARY_EXPORT AnimationController : public NativeBehaviour {
+    A_REGISTER(AnimationController, NativeBehaviour, Components)
 
     A_PROPERTIES (
-        A_PROPERTY(AnimationClip*, Clip, AnimationController::clip, AnimationController::setClip)
-    );
+        A_PROPERTY(AnimationStateMachine*, State_Machine, AnimationController::stateMachine, AnimationController::setStateMachine)
+    )
 
 public:
     AnimationController         ();
+
+    ~AnimationController        ();
 
     void                        start               ();
 
     void                        update              ();
 
-    AnimationClip              *clip                () const;
+    AnimationStateMachine      *stateMachine        () const;
 
-    void                        setClip             (AnimationClip *clip);
+    void                        setStateMachine     (AnimationStateMachine *machine);
 
     uint32_t                    position            () const;
 
     void                        setPosition         (uint32_t ms);
+
+    void                        setState            (string &state);
+
+    void                        setState            (size_t hash);
+
+    AnimationClip              *clip                ();
+
+    void                        setClip             (AnimationClip *clip);
 
     uint32_t                    duration            () const;
 
@@ -37,12 +49,7 @@ public:
 protected:
     Object                     *findTarget          (Object *src, const string &path);
 
-    list<PropertyAnimation *>   m_Properties;
-
-    AnimationClip              *m_pClip;
-
-    uint32_t                    m_Time;
-
+    AnimationControllerPrivate *p_ptr;
 };
 
 #endif // ANIMATIONCONTROLLER_H

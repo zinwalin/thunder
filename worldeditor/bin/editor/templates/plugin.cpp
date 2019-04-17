@@ -7,7 +7,8 @@ ${Includes}
 
 class ${Project_Name} : public IModule {
 public:
-    ${Project_Name}             (Engine *engine) {
+    ${Project_Name}             (Engine *engine) :
+            m_pEngine(engine) {
         ${RegisterComponents}
     }
 
@@ -32,11 +33,14 @@ public:
         ${ComponentNames}
         return result;
     }
-};
 
+    Engine *m_pEngine;
+};
+#ifdef NEXT_SHARED
 extern "C" {
-    NEXT_LIBRARY_EXPORT IModule *moduleCreate(Engine *engine) {
+    MODULE_EXPORT IModule *moduleCreate(Engine *engine) {
         return new ${Project_Name}(engine);
     }
 }
+#endif
 #endif // PLUGINTEMPLATE_H

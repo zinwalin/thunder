@@ -29,12 +29,14 @@ public:
     ObjectPrivate() :
         m_pParent(nullptr),
         m_pCurrentSender(nullptr),
-        m_UUID(0) {
+        m_UUID(0),
+        m_Cloned(0),
+        m_pSystem(nullptr) {
 
     }
 
     bool isLinkExist(const Object::Link &link) const {
-        PROFILE_FUNCTION()
+        PROFILE_FUNCTION();
         for(const auto &it : m_lRecievers) {
             if(it == link) {
                 return true;
@@ -57,9 +59,11 @@ public:
     EventQueue                      m_EventQueue;
 
     uint32_t                        m_UUID;
+    uint32_t                        m_Cloned;
 
     mutex                           m_Mutex;
 
+    ObjectSystem                   *m_pSystem;
 };
 /*!
     \class Object
@@ -254,12 +258,18 @@ public:
 */
 Object::Object() :
         p_ptr(new ObjectPrivate) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
 
+    setUUID(ObjectSystem::generateUID());
 }
 
 Object::~Object() {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
+
+    if(p_ptr->m_pSystem) {
+        p_ptr->m_pSystem->removeObject(this);
+    }
+
     {
         unique_lock<mutex> locker(p_ptr->m_Mutex);
         while(!p_ptr->m_EventQueue.empty()) {
@@ -269,14 +279,14 @@ Object::~Object() {
     }
 
     while(!p_ptr->m_lSenders.empty()) {
-        disconnect(p_ptr->m_lSenders.front().sender, 0, this, 0);
+        disconnect(p_ptr->m_lSenders.front().sender, nullptr, this, nullptr);
     }
-    disconnect(this, 0, 0, 0);
+    disconnect(this, nullptr, nullptr, nullptr);
 
     for(const auto &it : p_ptr->m_mChildren) {
         Object *c  = it;
         if(c) {
-            c->p_ptr->m_pParent    = 0;
+            c->p_ptr->m_pParent    = nullptr;
             delete c;
         }
     }
@@ -295,7 +305,7 @@ Object::~Object() {
     \sa MetaObject
 */
 Object *Object::construct() {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return new Object();
 }
 /*!
@@ -305,7 +315,7 @@ Object *Object::construct() {
     \sa MetaObject
 */
 const MetaObject *Object::metaClass() {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     static const MetaObject staticMetaData("Object", nullptr, &construct, nullptr, nullptr);
     return &staticMetaData;
 }
@@ -316,7 +326,7 @@ const MetaObject *Object::metaClass() {
     \sa MetaObject
 */
 const MetaObject *Object::metaObject() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return Object::metaClass();
 }
 /*!
@@ -330,10 +340,13 @@ const MetaObject *Object::metaObject() const {
 
     \sa connect()
 */
+
 Object *Object::clone() {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
+
     const MetaObject *meta  = metaObject();
     Object *result = meta->createInstance();
+    result->setParent(nullptr);
     int count  = meta->propertyCount();
     for(int i = 0; i < count; i++) {
         MetaProperty lp = result->metaObject()->property(i);
@@ -342,8 +355,8 @@ Object *Object::clone() {
     }
     for(auto it : getChildren()) {
         Object *clone  = it->clone();
-        clone->setName(it->name());
         clone->setParent(result);
+        clone->setName(it->name());
     }
     for(auto it : p_ptr->m_lSenders) {
         MetaMethod signal  = it.sender->metaObject()->method(it.signal);
@@ -357,35 +370,43 @@ Object *Object::clone() {
         connect(result, (to_string(1) + signal.signature()).c_str(),
                 it.receiver, (to_string((method.type() == MetaMethod::Signal) ? 1 : 2) + method.signature()).c_str());
     }
+    result->p_ptr->m_Cloned = p_ptr->m_UUID;
     result->p_ptr->m_UUID   = ObjectSystem::generateUID();
     return result;
+}
+/*!
+    Returns the UUID of cloned object.
+*/
+uint32_t Object::clonedFrom() const {
+    PROFILE_FUNCTION();
+    return p_ptr->m_Cloned;
 }
 /*!
     Returns a pointer to the parent object.
 */
 Object *Object::parent() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return p_ptr->m_pParent;
 }
 /*!
     Returns name of the object.
 */
 string Object::name() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return p_ptr->m_sName;
 }
 /*!
     Returns unique ID of the object.
 */
 uint32_t Object::uuid() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return p_ptr->m_UUID;
 }
 /*!
     Returns class name the object.
 */
 string Object::typeName() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return metaObject()->name();
 }
 /*!
@@ -425,8 +446,8 @@ string Object::typeName() const {
         Object::connect(&obj1, _SIGNAL(signal(bool)), &obj2, _SIGNAL(signal(bool)));
     \endcode
 */
-void Object::connect(Object *sender, const char *signal, Object *receiver, const char *method) {
-    PROFILE_FUNCTION()
+bool Object::connect(Object *sender, const char *signal, Object *receiver, const char *method) {
+    PROFILE_FUNCTION();
     if(sender && receiver) {
         int32_t snd = sender->metaObject()->indexOfSignal(&signal[1]);
 
@@ -455,9 +476,11 @@ void Object::connect(Object *sender, const char *signal, Object *receiver, const
                     unique_lock<mutex> locker(receiver->p_ptr->m_Mutex);
                     receiver->p_ptr->m_lSenders.push_back(link);
                 }
+                return true;
             }
         }
     }
+    return false;
 }
 /*!
     Disconnects \a signal in object \a sender from \a method in object \a receiver.
@@ -484,7 +507,7 @@ void Object::connect(Object *sender, const char *signal, Object *receiver, const
     \sa connect()
 */
 void Object::disconnect(Object *sender, const char *signal, Object *receiver, const char *method) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     if(sender && !sender->p_ptr->m_lRecievers.empty()) {
         unique_lock<mutex> eraseLocker(sender->p_ptr->m_Mutex);
         for(auto snd = sender->p_ptr->m_lRecievers.begin(); snd != sender->p_ptr->m_lRecievers.end(); ) {
@@ -518,21 +541,21 @@ void Object::disconnect(Object *sender, const char *signal, Object *receiver, co
     This object will be deleted when event loop will call processEvent() method for this object.
 */
 void Object::deleteLater() {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     postEvent(new Event(Event::DESTROY));
 }
 /*!
     Returns list of child objects for this object.
 */
 const Object::ObjectList &Object::getChildren() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return p_ptr->m_mChildren;
 }
 /*!
     Returns list of links to receivers objects for this object.
 */
 const Object::LinkList &Object::getReceivers() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return p_ptr->m_lRecievers;
 }
 
@@ -556,7 +579,7 @@ const Object::LinkList &Object::getReceivers() const {
     \sa findChild()
 */
 Object *Object::find(const string &path) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     if(p_ptr->m_pParent && path[0] == '/') {
         return p_ptr->m_pParent->find(path);
     }
@@ -585,7 +608,7 @@ Object *Object::find(const string &path) {
     \sa parent()
 */
 void Object::setParent(Object *parent) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     if(p_ptr->m_pParent) {
         p_ptr->m_pParent->removeChild(this);
     }
@@ -600,21 +623,21 @@ void Object::setParent(Object *parent) {
     \sa metaObject()
 */
 void Object::setName(const string &name) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     if(!name.empty()) {
         p_ptr->m_sName = name;
     }
 }
 
 void Object::addChild(Object *value) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     if(value) {
         p_ptr->m_mChildren.push_back(value);
     }
 }
 
 void Object::removeChild(Object *value) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     auto it = p_ptr->m_mChildren.begin();
     while(it != p_ptr->m_mChildren.end()) {
         if(*it == value) {
@@ -635,7 +658,7 @@ void Object::removeChild(Object *value) {
     \sa connect()
 */
 void Object::emitSignal(const char *signal, const Variant &args) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     int32_t index   = metaObject()->indexOfSignal(&signal[1]);
     for(auto &it : p_ptr->m_lRecievers) {
         Link *link  = &(it);
@@ -654,13 +677,13 @@ void Object::emitSignal(const char *signal, const Variant &args) {
     Place event to internal \a event queue to be processed in event loop.
 */
 void Object::postEvent(Event *event) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     unique_lock<mutex> locker(p_ptr->m_Mutex);
     p_ptr->m_EventQueue.push(event);
 }
 
 void Object::processEvents() {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     while(!p_ptr->m_EventQueue.empty()) {
         unique_lock<mutex> locker(p_ptr->m_Mutex);
         Event *e   = p_ptr->m_EventQueue.front();
@@ -676,7 +699,7 @@ void Object::processEvents() {
                 locker.unlock();
                 delete this;
                 return;
-            } break;
+            }
             default: {
                 event(e);
             } break;
@@ -691,11 +714,16 @@ void Object::processEvents() {
     Returns true in case of \a event was handled otherwise return false.
 */
 bool Object::event(Event *event) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     A_UNUSED(event);
     return false;
 }
-
+/*!
+    This method allows to DESERIALIZE \a data of object like properties, connections and user data.
+*/
+void Object::loadData(const VariantList &data) {
+    A_UNUSED(data)
+}
 /*!
     This method allows to DESERIALIZE \a data which not present as A_PROPERTY() in object.
 */
@@ -703,11 +731,25 @@ void Object::loadUserData(const VariantMap &data) {
     A_UNUSED(data)
 }
 /*!
-    This method allows to SERIALIZE data which not present as A_PROPERTY() in object.
+    This method allows to SERIALIZE all object data like properties connections and user data.
     Returns serialized data as VariantList.
+*/
+VariantList Object::saveData() const {
+    return serializeData(metaObject());
+}
+
+/*!
+    This method allows to SERIALIZE data which not present as A_PROPERTY() in object.
+    Returns serialized data as VariantMap.
 */
 VariantMap Object::saveUserData() const {
     return VariantMap();
+}
+/*!
+    Returns true if the object can be serialized; otherwise returns false.
+*/
+bool Object::isSerializable() const {
+    return true;
 }
 /*!
     Returns the value of the object's property by \a name.
@@ -718,7 +760,7 @@ VariantMap Object::saveUserData() const {
     \sa setProperty(), metaObject(), Variant::isValid()
 */
 Variant Object::property(const char *name) const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     const MetaObject *meta  = metaObject();
     int index   = meta->indexOfProperty(name);
     if(index > -1) {
@@ -736,7 +778,7 @@ Variant Object::property(const char *name) const {
     \sa property(), metaObject(), Variant::isValid()
 */
 void Object::setProperty(const char *name, const Variant &value) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     const MetaObject *meta  = metaObject();
     int index   = meta->indexOfProperty(name);
     if(index > -1) {
@@ -748,20 +790,70 @@ void Object::setProperty(const char *name, const Variant &value) {
     \note This method returns a valid object only in receiver slot otherwise it's return nullptr
 */
 Object *Object::sender() const {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     return p_ptr->m_pCurrentSender;
+}
+/*!
+    Returns System which handles this object.
+*/
+ObjectSystem *Object::system() const {
+    PROFILE_FUNCTION()
+    return p_ptr->m_pSystem;
 }
 
 void Object::setUUID(uint32_t id) {
-    PROFILE_FUNCTION()
+    PROFILE_FUNCTION();
     p_ptr->m_UUID   = id;
 }
 
-Object &Object::operator=(Object &right) {
-    PROFILE_FUNCTION()
-    return *new Object(right);
+void Object::setSystem(ObjectSystem *system) {
+    PROFILE_FUNCTION();
+    p_ptr->m_pSystem = system;
 }
 
-Object::Object(const Object &) {
+VariantList Object::serializeData(const MetaObject *meta) const {
     PROFILE_FUNCTION()
+
+    VariantList result;
+
+    result.push_back(meta->name());
+    result.push_back((int32_t)uuid());
+    Object *p = parent();
+    result.push_back((int32_t)((p) ? p->uuid() : 0));
+    result.push_back(name());
+
+    // Save base properties
+    VariantMap properties;
+    for(int i = 0; i < meta->propertyCount(); i++) {
+        MetaProperty p = meta->property(i);
+        if(p.isValid()) {
+            Variant v  = p.read(this);
+            if(v.userType() < MetaType::USERTYPE) {
+                properties[p.name()] = v;
+            }
+        }
+    }
+
+    // Save links
+    VariantList links;
+    for(const auto &l : getReceivers()) {
+        VariantList link;
+
+        Object *sender  = l.sender;
+
+        link.push_back((int32_t)sender->uuid());
+        MetaMethod method  = sender->metaObject()->method(l.signal);
+        link.push_back(Variant(char(method.type() + 0x30) + method.signature()));
+
+        link.push_back((int32_t)uuid());
+        method      = meta->method(l.method);
+        link.push_back(Variant(char(method.type() + 0x30) + method.signature()));
+
+        links.push_back(link);
+    }
+    result.push_back(properties);
+    result.push_back(links);
+    result.push_back(saveUserData());
+
+    return result;
 }

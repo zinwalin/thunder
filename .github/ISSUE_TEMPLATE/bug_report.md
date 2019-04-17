@@ -10,9 +10,9 @@ about: Create a report to help us improve
 
 ## Steps to Reproduce
 
-    [First Step]
-    [Second Step]
-    [and so on...]
+1. [First Step]
+2. [Second Step]
+3. [and so on...]
 
 ### Expected behavior:
 
@@ -32,4 +32,4 @@ You can get this information from About Dialog. Also, please include the OS and 
 
 ## Additional Information
 
-Please include any additional information, configuration or data that might be necessary to reproduce the issue. Screenshots and logs, are helpful as well.
+Please include any additional information, configuration or data that might be necessary to reproduce the issue. Screenshots and logs are helpful as well.

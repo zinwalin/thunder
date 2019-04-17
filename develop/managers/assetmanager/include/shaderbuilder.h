@@ -7,17 +7,32 @@
 #include <resources/material.h>
 #include <module.h>
 
+#include <QFileInfo>
+
 #include "abstractschememodel.h"
+
+#include "assetmanager.h"
 
 class Log;
 class ShaderBuilder;
+
+static const char *a("A");
+static const char *b("B");
+static const char *x("X");
+static const char *y("Y");
 
 class ShaderFunction : public QObject {
     Q_OBJECT
 
 public:
-    virtual AbstractSchemeModel::Node  *createNode  (ShaderBuilder *model, const QString &path) {
-        m_pNode     = new AbstractSchemeModel::Node;
+    ShaderFunction() { reset(); }
+
+    void reset() {
+        m_Position  = -1;
+    }
+
+    virtual AbstractSchemeModel::Node *createNode(ShaderBuilder *model, const QString &path) {
+        m_pNode = new AbstractSchemeModel::Node;
         m_pNode->root   = false;
         m_pNode->name   = path;
         m_pNode->ptr    = this;
@@ -28,9 +43,19 @@ public:
         return m_pNode;
     }
 
-    virtual bool                        build       (QString &value, const AbstractSchemeModel::Link &link, uint32_t &depth, uint8_t &size) = 0;
+    virtual uint32_t build(QString &value, const AbstractSchemeModel::Link &link, uint32_t &depth, uint8_t &size) {
+        Q_UNUSED(value);
+        Q_UNUSED(link);
+        Q_UNUSED(size);
 
-    static QString                      convert     (const QString &value, uint8_t current, uint8_t target, uint8_t component = 0) {
+        if(m_Position == -1) {
+            m_Position  = depth;
+            depth++;
+        }
+        return m_Position;
+    }
+
+    static QString convert(const QString &value, uint8_t current, uint8_t target, uint8_t component = 0) {
         QString prefix;
         QString suffix;
 
@@ -74,11 +99,13 @@ public:
     }
 
 signals:
-    void                        updated     ();
+    void updated();
 
 protected:
-    ShaderBuilder              *m_pModel;
-    AbstractSchemeModel::Node  *m_pNode;
+    ShaderBuilder *m_pModel;
+    AbstractSchemeModel::Node *m_pNode;
+
+    int32_t m_Position;
 
 };
 
@@ -93,6 +120,8 @@ class ShaderBuilder : public AbstractSchemeModel {
     Q_ENUMS(LightModel)
     Q_PROPERTY(bool Two_Sided READ isDoubleSided WRITE setDoubleSided DESIGNABLE true USER true)
     Q_PROPERTY(bool Depth_Test READ isDepthTest WRITE setDepthTest DESIGNABLE true USER true)
+    Q_PROPERTY(bool View_Space READ isViewSpace WRITE setViewSpace DESIGNABLE true USER true)
+    Q_PROPERTY(FilePath Raw_Path READ rawPath WRITE setRawPath DESIGNABLE true USER true)
 
 public:
     enum LightModel {
@@ -112,31 +141,30 @@ public:
         PostProcess     = Material::PostProcess,
         LightFunction   = Material::LightFunction
     };
+
+    enum Flags {
+        Cube    = (1<<0),
+        Target  = (1<<1)
+    };
+
 public:
     ShaderBuilder               ();
-    ~ShaderBuilder              ();
+    ~ShaderBuilder              () Q_DECL_OVERRIDE;
 
-    Node                       *createNode                  (const QString &path);
-    void                        deleteNode                  (Node *node);
+    Node                       *createNode                  (const QString &path) Q_DECL_OVERRIDE;
 
-    void                        createLink                  (Node *sender, Item *sitem, Node *receiver, Item *ritem);
-    void                        deleteLink                  (Item *item, bool silent = false);
+    QAbstractItemModel         *components                  () const Q_DECL_OVERRIDE;
 
-    const AbstractSchemeModel::Link    *findLink            (const AbstractSchemeModel::Node *node, const char *item) {
-        for(const auto it : m_Links) {
-            QString str;
-            str.compare(item);
-            if(it->receiver == node && it->ritem->name.compare(item) == 0) {
-                return it;
-            }
-        }
-        return nullptr;
-    }
+    void                        load                        (const QString &path) Q_DECL_OVERRIDE;
+    void                        save                        (const QString &path) Q_DECL_OVERRIDE;
 
-    QAbstractItemModel         *components                  () const;
+    QStringList suffixes() const Q_DECL_OVERRIDE { return {"mtl"}; }
+    uint32_t contentType() const Q_DECL_OVERRIDE { return ContentMaterial; }
+    uint32_t type() const Q_DECL_OVERRIDE { return MetaType::type<Material *>(); }
+    uint8_t convertFile(IConverterSettings *) Q_DECL_OVERRIDE;
 
-    void                        load                        (const QString &path);
-    void                        save                        (const QString &path);
+    void                        loadUserValues              (Node *node, const QVariantMap &values) Q_DECL_OVERRIDE;
+    void                        saveUserValues              (Node *node, QVariantMap &values) Q_DECL_OVERRIDE;
 
     Variant                     object                      () const;
 
@@ -146,13 +174,14 @@ public:
 
     QString                     shader                      () const { return m_Shader; }
 
-    bool                        isTangent                   () const { return m_Tangent; }
-
     bool                        isDoubleSided               () const { return m_DoubleSided; }
     void                        setDoubleSided              (bool value) { m_DoubleSided = value; emit schemeUpdated(); }
 
     bool                        isDepthTest                 () const { return m_DepthTest; }
     void                        setDepthTest                (bool value) { m_DepthTest = value; emit schemeUpdated(); }
+
+    bool                        isViewSpace                 () const { return m_ViewSpace; }
+    void                        setViewSpace                (bool value) { m_ViewSpace = value; emit schemeUpdated(); }
 
     Type                        materialType                () const { return m_MaterialType; }
     void                        setMaterialType             (Type type) { m_MaterialType = type; }
@@ -163,11 +192,14 @@ public:
     LightModel                  lightModel                  () const { return m_LightModel; }
     void                        setLightModel               (LightModel model) { m_LightModel = model; emit schemeUpdated(); }
 
-    int                         setTexture                  (const QString &path, Vector4 &sub, bool cube);
+    int                         setTexture                  (const QString &path, Vector4 &sub, uint8_t flags = 0);
 
     void                        addUniform                  (const QString &name, uint8_t type);
 
     void                        reportError                 (QObject *, const QString &) { }
+
+    FilePath                    rawPath                     () const { return m_RawPath; }
+    void                        setRawPath                  (const FilePath &path) { m_RawPath = path; }
 
 private:
     bool                        build                       (QString &, const AbstractSchemeModel::Link &, uint32_t &, uint8_t &) {return true;}
@@ -178,9 +210,12 @@ private:
 
     void                        cleanup                     ();
 
+    void                        addPragma                   (const string &key, const string &value);
+    QString                     loadIncludes                (const QString &path, const string &define) const;
+
     typedef map<QString, uint8_t>   UniformMap;
 
-    typedef QPair<QString, bool>    TexturePair;
+    typedef QPair<QString, uint8_t> TexturePair;
 
     typedef QList<TexturePair>      TextureList;
 
@@ -203,11 +238,15 @@ private:
 
     bool                        m_DoubleSided;
 
-    bool                        m_Tangent;
-
     bool                        m_DepthTest;
 
-    AbstractSchemeModel::Node  *m_pNode;
+    bool                        m_ViewSpace;
+
+    typedef map<string, string> PragmaMap;
+
+    PragmaMap                   m_Pragmas;
+
+    FilePath                    m_RawPath;
 };
 
 #endif // SHADERBUILDER_H

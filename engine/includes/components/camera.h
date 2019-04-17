@@ -3,27 +3,30 @@
 
 #include <array>
 
-#include "component.h"
+#include "nativebehaviour.h"
 
 class Pipeline;
 
 class NEXT_LIBRARY_EXPORT Camera : public Component {
-    A_REGISTER(Camera, Component, Components);
+    A_REGISTER(Camera, Component, Components)
 
     A_PROPERTIES(
         A_PROPERTY(float, Fov,  Camera::fov, Camera::setFov),
         A_PROPERTY(float, Near, Camera::nearPlane, Camera::setNear),
         A_PROPERTY(float, Far,  Camera::farPlane, Camera::setFar),
-        A_PROPERTY(float, Size, Camera::orthoWidth, Camera::setOrthoWidth),
+        A_PROPERTY(float, Size, Camera::orthoHeight, Camera::setOrthoHeight),
         A_PROPERTY(float, Focal_Distance, Camera::focal, Camera::setFocal),
         A_PROPERTY(Color, Background_Color, Camera::color, Camera::setColor),
         A_PROPERTY(bool, Orthographic, Camera::orthographic, Camera::setOrthographic)
-    );
+    )
+    A_NOMETHODS()
 
 public:
     Camera                      ();
 
     Pipeline                   *pipeline                ();
+
+    void                        setPipeline             (Pipeline *pipeline);
 
     void                        matrices                (Matrix4 &v, Matrix4 &p) const;
 
@@ -52,13 +55,16 @@ public:
     Vector4                     color                   () const;
     void                        setColor                (const Vector4 &color);
 
-    float                       orthoWidth              () const;
-    void                        setOrthoWidth           (const float value);
+    float                       orthoHeight             () const;
+    void                        setOrthoHeight          (const float value);
 
     bool                        orthographic            () const;
     void                        setOrthographic         (const bool value);
 
     array<Vector3, 8>           frustumCorners          (float nearPlane, float farPlane) const;
+
+    static Camera              *current                 ();
+    static void                 setCurrent              (Camera *current);
 
 protected:
     bool                        m_Ortho;
@@ -73,11 +79,13 @@ protected:
 
     float                       m_Focal;
 
-    float                       m_OrthoWidth;
+    float                       m_OrthoHeight;
 
     Vector4                     m_Color;
 
     Pipeline                   *m_pPipeline;
+
+    static Camera              *s_pCurrent;
 };
 
 #endif // CAMERA_H

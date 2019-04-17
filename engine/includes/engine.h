@@ -5,17 +5,16 @@
 #include <string>
 #include <map>
 
-#include <object.h>
 #include <objectsystem.h>
 
-#include <file.h>
+#include "file.h"
 
 class IModule;
-class IController;
 
 class EnginePrivate;
 
 class Actor;
+class Scene;
 
 class NEXT_LIBRARY_EXPORT Engine : public ObjectSystem {
 public:
@@ -26,7 +25,11 @@ public:
 */
     bool                        init                        ();
 
-    int32_t                     exec                        ();
+    bool                        start                       ();
+
+    void                        resize                      ();
+
+    void                        update                      ();
 /*
     Settings
 */
@@ -36,32 +39,31 @@ public:
 /*
     Resource management
 */
-    static Object              *loadResource                (const string &path = string());
+    static Object              *loadResourceImpl            (const string &path);
+
+    static void                 unloadResource              (const string &path);
 
     template<typename T>
     static T                   *loadResource                (const string &path) {
-        return dynamic_cast<T *>(loadResource(path));
+        return dynamic_cast<T *>(loadResourceImpl(path));
     }
 
     static string               reference                   (Object *object);
 
     static void                 reloadBundle                ();
+
 /*
     Misc
 */
-    static Actor               *createActor                 (const string &name = string(), Object *parent = nullptr, const StringList &components = StringList());
+    static bool                 isGameMode                  ();
+
+    static void                 setGameMode                 (bool game);
 
     void                        addModule                   (IModule *mode);
 
-    bool                        createWindow                ();
+    Scene                      *scene                       ();
 
-    IController                *controller                  ();
-    /*!
-        Get FileIO object.
-
-        @return                 Pointer to file system object.
-    */
-    IFile                      *file                        ();
+    static IFile               *file                        ();
 
     static string               locationAppDir              ();
 
@@ -76,6 +78,10 @@ public:
     string                      organizationName            () const;
 
     void                        setOrganizationName         (const string &name);
+
+    void                        updateScene                 (Scene *scene);
+
+    static void                 setResource                 (Object *object, string &uuid);
 
 private:
     EnginePrivate              *p_ptr;

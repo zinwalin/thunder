@@ -3,7 +3,7 @@
 
 #include <module.h>
 
-class NEXT_LIBRARY_EXPORT RenderGL : public IModule {
+class RenderGL : public IModule {
 public:
     RenderGL                    (Engine *engine);
 
@@ -20,10 +20,11 @@ public:
 protected:
     Engine                     *m_pEngine;
 
+    ISystem                    *m_pSystem;
 };
 
 extern "C" {
-    NEXT_LIBRARY_EXPORT IModule *moduleCreate(Engine *engine);
+    MODULE_EXPORT IModule *moduleCreate(Engine *engine);
 }
 
 #endif // RENDERGL_H

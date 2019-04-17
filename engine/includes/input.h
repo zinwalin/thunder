@@ -1,14 +1,13 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-#include <patterns/asingleton.h>
 #include <amath.h>
 
 #include "engine.h"
 
 class IPlatformAdaptor;
 
-class NEXT_LIBRARY_EXPORT Input : public ASingleton<Input> {
+class NEXT_LIBRARY_EXPORT Input {
 public:
     enum MouseButton {
         LEFT                = 0x01,
@@ -161,32 +160,31 @@ public:
         KEY_MENU            = 348
     };
 public:
-    Input                       ();
-    ~Input                      ();
+    static void                 init                        (IPlatformAdaptor *platform);
 
-    void                        init                        (IPlatformAdaptor *platform);
+    static bool                 isKey                       (KeyCode code);
 
-    bool                        key                         (KeyCode code);
+    static Vector4              mousePosition               ();
 
-    Vector3                   mousePosition               ();
+    static Vector4              mouseDelta                  ();
 
-    Vector3                   mouseDelta                  ();
+    static uint32_t             mouseButtons                ();
 
-    uint8_t                     mouseButtons                ();
+    static void                 setMousePosition            (const Vector3 &position);
 
-    void                        setMousePosition            (const Vector3 &position);
+    static uint32_t             joystickCount               ();
 
-    uint16_t                    joystickCount               ();
+    static uint32_t             joystickButtons             (uint32_t index);
 
-    uint16_t                    joystickButtons             (uint8_t index);
+    static Vector4              joystickThumbs              (uint32_t index);
 
-    Vector4                   joystickThumbs              (uint8_t index);
+    static Vector2              joystickTriggers            (uint32_t index);
 
-    Vector2                   joystickTriggers            (uint8_t index);
+    static uint32_t             touchCount                  ();
 
-protected:
-    IPlatformAdaptor           *m_pPlatform;
+    static uint32_t             touchState                  (uint32_t index);
 
+    static Vector4              touchPosition               (uint32_t index);
 };
 
 #endif // INPUT_H

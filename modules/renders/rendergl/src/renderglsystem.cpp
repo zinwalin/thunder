@@ -3,41 +3,60 @@
 #include "agl.h"
 
 #include <components/camera.h>
+#include <components/scene.h>
 
 #include <resources/pipeline.h>
 
-#include <controller.h>
-
 #include <analytics/profiler.h>
-#include <log.h>
 
 #include "resources/atexturegl.h"
 #include "resources/arendertexturegl.h"
 
 #include "commandbuffergl.h"
 
-RenderGLSystem::RenderGLSystem(Engine *engine) :
-        ISystem(engine),
-        m_pController(nullptr) {
+#include <log.h>
+
+void _CheckGLError(const char* file, int line) {
+    GLenum err ( glGetError() );
+
+    while ( err != GL_NO_ERROR ) {
+        std::string error;
+        switch ( err ) {
+            case GL_INVALID_OPERATION:  error="GL_INVALID_OPERATION";      break;
+            case GL_INVALID_ENUM:       error="GL_INVALID_ENUM";           break;
+            case GL_INVALID_VALUE:      error="GL_INVALID_VALUE";          break;
+            case GL_OUT_OF_MEMORY:      error="OUT_OF_MEMORY";          break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION:  error="GL_INVALID_FRAMEBUFFER_OPERATION";  break;
+        }
+        Log(Log::DBG) << error.c_str() <<" - " << file << ":" << line;;
+        err = glGetError();
+    }
+    return;
+}
+
+RenderGLSystem::RenderGLSystem() :
+        ISystem() {
     PROFILER_MARKER;
 
-    ATextureGL::registerClassFactory();
-    ARenderTextureGL::registerClassFactory();
-    AMaterialGL::registerClassFactory();
-    AMeshGL::registerClassFactory();
+    ATextureGL::registerClassFactory(this);
+    ARenderTextureGL::registerClassFactory(this);
+    AMaterialGL::registerClassFactory(this);
+    AMeshGL::registerClassFactory(this);
 
-    CommandBufferGL::registerClassFactory();
+    CommandBufferGL::registerClassFactory(this);
 }
 
 RenderGLSystem::~RenderGLSystem() {
     PROFILER_MARKER;
 
-    ATextureGL::unregisterClassFactory();
-    ARenderTextureGL::unregisterClassFactory();
-    AMaterialGL::unregisterClassFactory();
-    AMeshGL::unregisterClassFactory();
+    ObjectSystem system;
 
-    CommandBufferGL::unregisterClassFactory();
+    ATextureGL::unregisterClassFactory(this);
+    ARenderTextureGL::unregisterClassFactory(this);
+    AMaterialGL::unregisterClassFactory(this);
+    AMeshGL::unregisterClassFactory(this);
+
+    CommandBufferGL::unregisterClassFactory(this);
 }
 
 /*!
@@ -48,14 +67,17 @@ bool RenderGLSystem::init() {
 
 #ifndef THUNDER_MOBILE
     if(!gladLoadGL()) {
+        CheckGLError();
         Log(Log::ERR) << "[ Render::RenderGLSystem ] Failed to initialize OpenGL context";
         return false;
     }
     glEnable        (GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    CheckGLError();
 #endif
 
     int32_t targets;
     glGetIntegerv	(GL_MAX_DRAW_BUFFERS, &targets);
+    CheckGLError();
 
     return true;
 }
@@ -67,37 +89,16 @@ const char *RenderGLSystem::name() const {
 /*!
     Main drawing procedure.
 */
-void RenderGLSystem::update(Scene &scene, uint32_t resource) {
+void RenderGLSystem::update(Scene *scene) {
     PROFILER_MARKER;
 
     PROFILER_RESET(POLYGONS);
     PROFILER_RESET(DRAWCALLS);
 
-    Camera *camera  = m_pEngine->controller()->activeCamera();
-    if(m_pController) {
-        camera  = m_pController->activeCamera();
-    }
-
+    Camera *camera  = Camera::current();
     if(camera) {
-        camera->pipeline()->draw(scene, resource);
-    }
-}
-
-void RenderGLSystem::overrideController(IController *controller) {
-    PROFILER_MARKER;
-
-    m_pController   = controller;
-}
-
-void RenderGLSystem::resize(uint32_t width, uint32_t height) {
-    PROFILER_MARKER;
-
-    Camera *camera  = m_pEngine->controller()->activeCamera();
-    if(m_pController) {
-        camera  = m_pController->activeCamera();
-    }
-
-    if(camera) {
-        camera->pipeline()->resize(width, height);
+        Pipeline *pipe  = camera->pipeline();
+        pipe->combineComponents(scene, true);
+        pipe->draw(scene, *camera);
     }
 }

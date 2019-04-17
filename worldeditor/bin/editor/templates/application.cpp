@@ -6,52 +6,18 @@
 
 #include <rendergl.h>
 
-#include <mutex>
+#include "plugin.cpp"
 
-${Includes}
-
-static string gAppConfig;
-static IFile *gFile = nullptr;
-
-class SimpleHandler : public ILogHandler {
-protected:
-    void            setRecord       (Log::LogTypes, const char *record) {
-        unique_lock<mutex> locker(m_Mutex);
-        _FILE *fp   = gFile->_fopen((gAppConfig + "/log.txt").c_str(), "a");
-        if(fp) {
-            gFile->_fwrite(record, strlen(record), 1, fp);
-            gFile->_fwrite("\n", 1, 1, fp);
-            gFile->_fclose(fp);
-        }
-    }
-    mutex           m_Mutex;
-};
-
-int main(int argc, char **argv) {
-    Log::overrideHandler(new SimpleHandler());
+int thunderMain(Engine *engine) {
     Log::setLogLevel(Log::DBG);
 
-    gFile   = new IFile;
-    gFile->finit(argv[0]);
-    Engine engine(gFile, argc, argv);
-    {
-        ${RegisterComponents}
+    if(engine->init()) {
+        engine->addModule(new RenderGL(engine));
+        engine->addModule(new ${Project_Name}(engine));
+
+        engine->start();
     }
 
-    gAppConfig  = engine.locationAppConfig();
-
-    gFile->fsearchPathAdd(engine.locationConfig().c_str(), true);
-    gFile->_mkdir(gAppConfig.c_str());
-
-    gFile->fsearchPathAdd((engine.locationAppDir() + "/base.pak").c_str());
-    engine.addModule(new RenderGL(&engine));
-    if(engine.init() && engine.createWindow()) {
-        engine.exec();
-    }
-
-    {
-        ${UnregisterComponents}
-    }
     return 0;
 }
 

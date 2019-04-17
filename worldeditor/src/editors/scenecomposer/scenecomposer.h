@@ -7,6 +7,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QProcess>
+#include <QMenu>
 
 #include <vector>
 #include <cstdint>
@@ -22,7 +23,6 @@ class Object;
 class PluginDialog;
 class ProjectManager;
 class SceneView;
-class ImportQueue;
 
 namespace Ui {
     class SceneComposer;
@@ -32,7 +32,7 @@ class SceneComposer : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit SceneComposer  (Engine *engine, QWidget *parent = 0);
+    explicit SceneComposer  (Engine *engine, QWidget *parent = nullptr);
     ~SceneComposer          ();
 
     bool                    isModified                                  () const { return mModified; }
@@ -47,8 +47,12 @@ private:
 
     void                    closeEvent                                  (QCloseEvent *event);
     void                    timerEvent                                  (QTimerEvent *);
+    void                    resizeEvent                                 (QResizeEvent *);
 
     bool                    checkSave                                   ();
+
+    void                    saveWorkspace                               ();
+    void                    resetWorkspace                              ();
 
     Ui::SceneComposer      *ui;
 
@@ -56,15 +60,13 @@ private:
 
     QMenu                  *cmToolbars;
 
-    PluginDialog           *m_pPluginDlg;
-
     QObject                *m_pProperties;
 
     Object                 *m_pMap;
 
-    QString                 mPath;
+    QString                 m_Path;
 
-    ImportQueue            *m_pImportQueue;
+    QString                 m_CurrentWorkspace;
 
     QProcess               *m_pBuilder;
 
@@ -102,12 +104,14 @@ private slots:
     void                    on_actionUndo_triggered                     ();
     void                    on_actionRedo_triggered                     ();
 
-    void                    onToolWindowActionToggled                   (bool checked);
+    void                    onWorkspaceActionClicked                    ();
+    void                    onToolWindowActionToggled                   (bool state);
 
     void                    onToolWindowVisibilityChanged               (QWidget *toolWindow, bool visible);
 
-    void                    on_actionSave_Layout_triggered              ();
-    void                    on_actionResore_Layout_triggered            ();
+    void                    on_actionSave_Workspace_triggered           ();
+    void                    on_actionReset_Workspace_triggered          ();
+
     void                    on_actionBuild_Project_triggered            ();
 
     void                    on_actionOptions_triggered                  ();

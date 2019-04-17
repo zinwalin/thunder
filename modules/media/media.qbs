@@ -44,7 +44,7 @@ Project {
         Depends { name: "Qt"; submodules: ["core", "gui", "multimedia"]; }
         bundle.isBundle: false
 
-        cpp.defines: ["BUILD_SHARED", "NEXT_LIBRARY"]
+        cpp.defines: ["NEXT_SHARED"]
         cpp.includePaths: media.incPaths
         cpp.cxxLanguageVersion: "c++14"
         cpp.minimumMacosVersion: "10.12"
@@ -53,7 +53,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("windows")
-            cpp.libraryPaths: [ "../../thirdparty/openal/windows/x32" ]
+            cpp.libraryPaths: ["../../thirdparty/openal/windows/" + ((qbs.architecture === "x86_64") ? "x64" : "x32")]
             cpp.dynamicLibraries: [ "OpenAL32" ]
         }
 
@@ -66,7 +66,7 @@ Project {
             name: "Install Dynamic media"
             fileTagsFilter: ["dynamiclibrary", "dynamiclibrary_import"]
             qbs.install: true
-            qbs.installDir: media.BIN_PATH + "/plugins/" + media.bundle
+            qbs.installDir: media.PLUGINS_PATH
             qbs.installPrefix: media.PREFIX
         }
     }
@@ -95,7 +95,8 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("android")
-            Android.ndk.appStl: "gnustl_shared"
+            Android.ndk.appStl: "gnustl_static"
+            Android.ndk.platform: media.ANDROID
         }
 
         Properties {

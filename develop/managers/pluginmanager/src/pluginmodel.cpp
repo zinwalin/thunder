@@ -11,7 +11,7 @@
 #include <system.h>
 #include <components/scene.h>
 
-#include <json.h>
+#include <bson.h>
 
 #include <rendergl.h>
 
@@ -30,15 +30,37 @@ enum {
 
 #define VERSION "version"
 
+#if defined(Q_OS_MAC)
+#define PLUGINS "/../../../plugins"
+#else
 #define PLUGINS "/plugins"
+#endif
 
 typedef IModule *(*moduleHandler)  (Engine *engine);
+
+PluginModel *PluginModel::m_pInstance   = nullptr;
 
 PluginModel::PluginModel() :
         BaseObjectModel(),
         m_pEngine(nullptr) {
 
-    m_Suffixes = QStringList() << "*.dll";
+    m_Suffixes = QStringList() << "*.dll" << "*.dylib" << "*.so";
+}
+
+PluginModel::~PluginModel() {
+    m_Scenes.clear();
+
+    m_Systems.clear();
+
+    foreach(auto it, m_Extensions) {
+        delete it;
+    }
+    m_Extensions.clear();
+
+    foreach(auto it, m_Libraries) {
+        delete it;
+    }
+    m_Libraries.clear();
 }
 
 int PluginModel::columnCount(const QModelIndex &) const {
@@ -80,6 +102,18 @@ QVariant PluginModel::data(const QModelIndex &index, int role) const {
     return QVariant();
 }
 
+PluginModel *PluginModel::instance() {
+    if(!m_pInstance) {
+        m_pInstance = new PluginModel;
+    }
+    return m_pInstance;
+}
+
+void PluginModel::destroy() {
+    delete m_pInstance;
+    m_pInstance = nullptr;
+}
+
 void PluginModel::init(Engine *engine) {
     m_pEngine   = engine;
 }
@@ -91,7 +125,7 @@ void PluginModel::rescan() {
     rescanPath(ProjectManager::instance()->pluginsPath());
 }
 
-bool PluginModel::loadPlugin(const QString &path) {
+bool PluginModel::loadPlugin(const QString &path, bool reload) {
     QLibrary *lib   = new QLibrary(path);
     if(lib->load()) {
         moduleHandler moduleCreate  = (moduleHandler)lib->resolve("moduleCreate");
@@ -102,7 +136,8 @@ bool PluginModel::loadPlugin(const QString &path) {
 
                 uint8_t types   = plugin->types();
                 if(types & IModule::SYSTEM) {
-                    registerSystemPlugin(plugin);
+                    registerExtensionPlugin(path, plugin);
+                    registerSystem(plugin);
                 }
                 if(types & IModule::EXTENSION) {
                     registerExtensionPlugin(path, plugin);
@@ -110,6 +145,12 @@ bool PluginModel::loadPlugin(const QString &path) {
                 if(types & IModule::CONVERTER) {
                      AssetManager::instance()->registerConverter(plugin->converter());
                 }
+                if(!reload) {
+                    ComponentMap result;
+                    serializeComponents(plugin->components(), result);
+                    deserializeComponents(result);
+                }
+
                 int start   = rowCount();
                 beginInsertRows(QModelIndex(), start, start);
                     QFileInfo file(path);
@@ -140,25 +181,21 @@ void PluginModel::reloadPlugin(const QString &path) {
     QFileInfo dest  = ProjectManager::instance()->pluginsPath() + QDir::separator() + info.fileName();
     QFileInfo temp  = dest.absoluteFilePath() + ".tmp";
 
+    // Rename old version of plugin
     if(dest.exists()) {
+        QFile::remove(temp.absoluteFilePath());
         QFile::rename(dest.absoluteFilePath(), temp.absoluteFilePath());
     }
 
     PluginsMap::Iterator ext    = m_Extensions.find(dest.absoluteFilePath());
     LibrariesMap::Iterator lib  = m_Libraries.find(dest.absoluteFilePath());
+
     if(ext != m_Extensions.end() && lib != m_Libraries.end()) { // Reload plugin
         IModule *plugin = ext.value();
-        StringList list = plugin->components();
         ComponentMap result;
-        for(auto type : list) {
-            foreach(Scene *scene, m_Scenes) {
-                serializeComponents(scene, type, result);
-            }
-        }
+        serializeComponents(plugin->components(), result);
         // Unload plugin
         delete plugin;
-        plugin  = nullptr;
-        m_Extensions.remove(ext.key());
 
         QObject *child  = m_rootItem->findChild<QObject *>(info.fileName());
         if(child) {
@@ -167,41 +204,33 @@ void PluginModel::reloadPlugin(const QString &path) {
 
         if(lib.value()->unload()) {
             // Copy new plugin
-            if(QFile::copy(path, dest.absoluteFilePath()) && loadPlugin(dest.absoluteFilePath())) {
-                // Deserialize saved data for components
-                ComponentMap::const_iterator i = result.constBegin();
-                while(i != result.constEnd()) {
-                    Variant v   = Json::load(i.value().toStdString());
-                    Object *object  = Engine::toObject(v);
-                    if(object) {
-                        object->setParent(i.key());
-                    }
-                    ++i;
-                }
-
+            if(QFile::copy(path, dest.absoluteFilePath()) && loadPlugin(dest.absoluteFilePath(), true)) {
+                deserializeComponents(result);
                 // Remove old plugin
                 if(QFile::remove(temp.absoluteFilePath())) {
-                    emit pluginReloaded(dest.absoluteFilePath());
                     Log(Log::INF) << "Plugin:" << qPrintable(path) << "reloaded";
                     return;
                 }
             }
+            delete lib.value();
+            m_Extensions.remove(ext.key());
+        } else {
+            Log(Log::ERR) << "Plugin unload:" << qPrintable(path) << "failed";
         }
     } else { // Just copy and load plugin
-        if(QFile::copy(path, dest.absoluteFilePath())) {
-            if(loadPlugin(dest.absoluteFilePath())) {
-                Log(Log::INF) << "Plugin:" << qPrintable(path) << "simply loaded";
-                return;
-            }
+        if(QFile::copy(path, dest.absoluteFilePath()) && loadPlugin(dest.absoluteFilePath())) {
+            Log(Log::INF) << "Plugin:" << qPrintable(path) << "simply loaded";
+            return;
         }
     }
     // Rename it back
-    if(QFile::remove(dest.absoluteFilePath())) {
-        QFile::rename(temp.absoluteFilePath(), dest.absoluteFilePath());
+    if(QFile::remove(dest.absoluteFilePath()) && QFile::rename(temp.absoluteFilePath(), dest.absoluteFilePath())) {
+        if(loadPlugin(dest.absoluteFilePath())) {
+            Log(Log::INF) << "Old version of plugin:" << qPrintable(path) << "is loaded";
+        } else {
+            Log(Log::ERR) << "Load of old version of plugin:" << qPrintable(path) << "is failed";
+        }
     }
-    // \todo Try to load it back
-    Log(Log::ERR) << "Can't reload plugin:" << qPrintable(path);
-    return;
 }
 
 void PluginModel::clear() {
@@ -219,21 +248,30 @@ void PluginModel::rescanPath(const QString &path) {
     }
 }
 
-void PluginModel::registerSystemPlugin(IModule *plugin) {
-    m_Systems[QString::fromStdString(plugin->system()->name())] = plugin;
+void PluginModel::registerSystem(IModule *plugin) {
+    ISystem *system = plugin->system();
+    m_Systems[QString::fromStdString(system->name())] = system;
+}
+
+void PluginModel::initSystems() {
+    foreach(auto it, m_Systems) {
+        if(it) {
+            it->init();
+        }
+    }
+}
+
+void PluginModel::updateSystems(Scene *scene) {
+    foreach(auto it, m_Systems) {
+        if(it) {
+            it->update(scene);
+        }
+    }
 }
 
 void PluginModel::registerExtensionPlugin(const QString &path, IModule *plugin) {
     m_Extensions[path]  = plugin;
     emit updated();
-}
-
-ISystem *PluginModel::createSystem(const QString &name) {
-    QMap<QString, IModule *>::iterator it   = m_Systems.find(name);
-    if(it != m_Systems.end()) {
-        return it.value()->system();
-    }
-    return nullptr;
 }
 
 void PluginModel::addScene(Scene *scene) {
@@ -251,14 +289,32 @@ void enumComponents(const Object *object, const string &type, ObjectArray &list)
     }
 }
 
-void PluginModel::serializeComponents(Object *parent, const string &type, ComponentMap &map) {
-    ObjectArray array;
+void PluginModel::serializeComponents(const StringList &list, ComponentMap &map) {
+    for(auto type : list) {
+        foreach(Scene *scene, m_Scenes) {
+            ObjectArray array;
 
-    enumComponents(parent, type, array);
+            enumComponents(scene, type, array);
 
-    for(auto it : array) {
-        Variant v   = Engine::toVariant(it);
-        map[it->parent()] = Json::save(v).c_str();
-        delete it;
+            for(auto it : array) {
+                Variant v   = Engine::toVariant(it);
+                map[it->parent()] = Bson::save(v);
+                delete it;
+            }
+        }
     }
+
+}
+
+void PluginModel::deserializeComponents(const ComponentMap &map) {
+    auto it = map.constBegin();
+    while(it != map.constEnd()) {
+        Variant v = Bson::load(it.value());
+        Object *object = Engine::toObject(v);
+        if(object) {
+            object->setParent(it.key());
+        }
+        ++it;
+    }
+    emit pluginReloaded();
 }

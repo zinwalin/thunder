@@ -3,7 +3,7 @@
 
 #include <module.h>
 
-class NEXT_LIBRARY_EXPORT Media : public IModule {
+class Media : public IModule {
 public:
     Media                       (Engine *engine);
 
@@ -22,10 +22,11 @@ public:
 protected:
     Engine                     *m_pEngine;
 
+    ISystem                    *m_pSystem;
 };
 
 extern "C" {
-    NEXT_LIBRARY_EXPORT IModule *moduleCreate(Engine *engine);
+    MODULE_EXPORT IModule *moduleCreate(Engine *engine);
 }
 
 #endif // MEDIA_H

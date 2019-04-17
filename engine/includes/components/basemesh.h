@@ -4,15 +4,22 @@
 #include "mesh.h"
 #include "material.h"
 
-#include "component.h"
+#include "renderable.h"
 
 #include <array>
 
-class NEXT_LIBRARY_EXPORT BaseMesh : public Component {
-    A_REGISTER(BaseMesh, Component, General);
+class NEXT_LIBRARY_EXPORT BaseMesh : public Renderable {
+    A_REGISTER(BaseMesh, Renderable, General);
+
+    A_METHODS(
+        A_METHOD(Material *, BaseMesh::material),
+        A_METHOD(void, BaseMesh::setMaterial)
+    )
 
 public:
     BaseMesh                    ();
+
+    void                        draw                    (ICommandBuffer &buffer, int8_t layer);
 
     Mesh                       *mesh                    () const;
 
@@ -22,9 +29,9 @@ public:
 
     virtual void                setMaterials            (const MaterialArray &material);
 
-    Material                   *material                (uint32_t index = 0) const;
+    Material                   *material                (int index = 0) const;
 
-    virtual void                setMaterial             (Material *material, uint32_t index = 0);
+    virtual void                setMaterial             (Material *material, int index = 0);
 
     uint32_t                    materialCount           () const;
 

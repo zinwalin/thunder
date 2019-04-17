@@ -1,17 +1,31 @@
-#ifndef MetaType_H
-#define MetaType_H
+#ifndef METATYPE_H
+#define METATYPE_H
 
 #include <map>
+#include <unordered_map>
 #include <typeinfo>
 #include <typeindex>
 #include <stdint.h>
 
-#include <common.h>
+#include <global.h>
 
 using namespace std;
 
+#define REGISTER_META_TYPE(Class) \
+    REGISTER_META_TYPE_IMPL(Class); \
+    REGISTER_META_TYPE_IMPL(Class *);
+
+#define REGISTER_META_TYPE_IMPL(Class) registerMetaType<Class>(#Class)
+
+#define UNREGISTER_META_TYPE(Class) \
+    UNREGISTER_META_TYPE_IMPL(Class); \
+    UNREGISTER_META_TYPE_IMPL(Class *);
+
+#define UNREGISTER_META_TYPE_IMPL(Class) unregisterMetaType<Class>(#Class)
+
 class NEXT_LIBRARY_EXPORT MetaType {
 public:
+    /*! \enum Type */
     enum Type {
         INVALID                 = 0,
         BOOLEAN,
@@ -29,23 +43,26 @@ public:
         MATRIX3,
         MATRIX4,
 
-        USERTYPE                = 20
+        OBJECT                  = 30,
+
+        USERTYPE                = 40
     };
 
     struct Table {
         int                 (*get_size)                 ();
-        void                (*static_new)               (void**);
-        void                (*construct)                (void**);
-        void                (*static_delete)            (void**);
-        void                (*destruct)                 (void**);
-        void                (*clone)                    (const void**, void**);
-        void                (*move)                     (const void**, void**);
-        bool                (*compare)                  (const void**, const void**);
+        void               *(*static_new)               ();
+        void                (*construct)                (void *);
+        void                (*static_delete)            (void **);
+        void                (*destruct)                 (void *);
+        void                (*clone)                    (const void **, void **);
+        bool                (*compare)                  (const void **, const void **);
         type_index const    (*index)                    ();
         const char         *name;
     };
 
     typedef bool            (*converterCallback)        (void *to, const void *from, const uint32_t fromType);
+
+    typedef unordered_map<uint32_t, Table>              TypeMap;
 
 public:
     MetaType               (const Table *table);
@@ -60,6 +77,7 @@ public:
     bool                    isValid                     () const;
 
     static uint32_t         registerType                (Table &table);
+    static void             unregisterType              (Table &table);
 
     static uint32_t         type                        (const char *name);
 
@@ -82,6 +100,10 @@ public:
     static bool             registerConverter           (uint32_t from, uint32_t to, converterCallback function);
     static bool             hasConverter                (uint32_t from, uint32_t to);
 
+    static Table           *table                       (uint32_t type);
+
+    static TypeMap          types                       ();
+
 private:
     const Table            *m_pTable;
 
@@ -93,28 +115,24 @@ struct TypeFuncs {
     static int size() {
         return sizeof(T);
     }
-    static void static_new(void** dest) {
-        *dest = new T();
+    static void *static_new() {
+        return new T();
     }
-    static void static_delete(void** x) {
-        delete (*reinterpret_cast<T**>(x));
+    static void static_delete(void **x) {
+        delete (*reinterpret_cast<T **>(x));
     }
-    static void construct(void** dest) {
-        new (*dest) T();
+    static void construct(void *dest) {
+        new (dest) T();
     }
-    static void destruct(void** x) {
+    static void destruct(void *x) {
         A_UNUSED(x)
-        (*reinterpret_cast<T**>(x))->~T();
+        (reinterpret_cast<T *>(x))->~T();
     }
-    static void clone(const void** src, void** dest) {
-        *dest = new T(**reinterpret_cast<const T**>(src));
+    static void clone(const void **src, void **dest) {
+        *dest = new T(**reinterpret_cast<const T **>(src));
     }
-    static void move(const void** src, void** dest) {
-        **reinterpret_cast<T**>(dest) =
-            **reinterpret_cast<const T**>(src);
-    }
-    static bool compare(const void** left, const void** right) {
-        return (**reinterpret_cast<const T**>(left) == **reinterpret_cast<const T**>(right));
+    static bool compare(const void **left, const void **right) {
+        return (**reinterpret_cast<const T **>(left) == **reinterpret_cast<const T **>(right));
     }
     static type_index const index() {
         return type_index(typeid(T));
@@ -147,7 +165,8 @@ struct CheckType<T, True> {
 
 template<typename T>
 struct CheckType<T, False> {
-    typedef typename std::remove_cv<T>::type type;
+    typedef typename std::remove_cv<
+            typename std::remove_reference<T>::type>::type type;
 };
 
 template<typename T>
@@ -163,7 +182,6 @@ struct Table {
             TypeFuncs<T_no_cv>::static_delete,
             TypeFuncs<T_no_cv>::destruct,
             TypeFuncs<T_no_cv>::clone,
-            TypeFuncs<T_no_cv>::move,
             TypeFuncs<T_no_cv>::compare,
             TypeFuncs<T_no_cv>::index,
             typeName
@@ -174,7 +192,12 @@ struct Table {
 
 //Function to unpack args properly
 template<typename T>
-inline static MetaType::Table *getTable(const char *typeName) {
+inline static MetaType::Table *getTable(const char *typeName = "") {
+    uint32_t type   = MetaType::type<T>();
+    MetaType::Table *result   = MetaType::table(type);
+    if(result) {
+        return result;
+    }
     return Table<T>::get(typeName);
 }
 
@@ -183,4 +206,9 @@ static uint32_t registerMetaType(const char *typeName) {
     return MetaType::registerType(*getTable<T>(typeName));
 }
 
-#endif // MetaType_H
+template<typename T>
+static void unregisterMetaType(const char *typeName) {
+    MetaType::unregisterType(*getTable<T>(typeName));
+}
+
+#endif // METATYPE_H

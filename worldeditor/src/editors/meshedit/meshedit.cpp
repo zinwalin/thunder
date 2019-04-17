@@ -12,7 +12,7 @@
 #include <components/directlight.h>
 #include <components/camera.h>
 
-#include "common.h"
+#include <global.h>
 
 #include "editors/propertyedit/nextobject.h"
 #include "controllers/objectctrl.h"
@@ -26,8 +26,8 @@ MeshEdit::MeshEdit(Engine *engine) :
         ui(new Ui::MeshEdit),
         m_pMesh(nullptr),
         m_pGround(nullptr),
-        m_pLight(nullptr),
         m_pDome(nullptr),
+        m_pLight(nullptr),
         m_pEditor(nullptr) {
 
     ui->setupUi(this);
@@ -43,7 +43,7 @@ MeshEdit::MeshEdit(Engine *engine) :
 
     ui->treeView->setWindowTitle("Properties");
 
-    connect(glWidget, SIGNAL(inited()), this, SLOT(onGLInit()));
+    connect(glWidget, SIGNAL(inited()), this, SLOT(onGLInit()), Qt::DirectConnection);
     startTimer(16);
 
     ui->centralwidget->addToolWindow(glWidget, QToolWindowManager::EmptySpaceArea);
@@ -75,7 +75,7 @@ MeshEdit::~MeshEdit() {
 }
 
 void MeshEdit::timerEvent(QTimerEvent *) {
-    glWidget->update();
+    glWidget->repaint();
 }
 
 void MeshEdit::readSettings() {
@@ -123,20 +123,20 @@ void MeshEdit::onGLInit() {
     Scene *scene    = glWidget->scene();
     scene->setAmbient(0.5f);
 
-    m_pMesh     = Engine::createActor("Model", scene);
+    m_pMesh     = Engine::objectCreate<Actor>("Model", scene);
     m_pMesh->addComponent<StaticMesh>();
 
-    m_pLight    = Engine::createActor("LightSource", scene);
+    m_pLight    = Engine::objectCreate<Actor>("LightSource", scene);
     m_pLight->transform()->setRotation(Quaternion(Vector3(-30.0f, 45.0f, 0.0f)));
     DirectLight *light  = m_pLight->addComponent<DirectLight>();
     light->setCastShadows(true);
     //light->setColor(Vector4(0.99f, 0.83985f, 0.7326f, 1.0f));
 
-    m_pGround   = Engine::createActor("Ground", scene);
+    m_pGround   = Engine::objectCreate<Actor>("Ground", scene);
     m_pGround->transform()->setScale(Vector3(100.0f, 1.0f, 100.0f));
     m_pGround->addComponent<StaticMesh>()->setMesh(Engine::loadResource<Mesh>(".embedded/cube.fbx"));
 
-    m_pDome   = Engine::createActor("Dome", scene);
+    m_pDome     = Engine::objectCreate<Actor>("Dome", scene);
     m_pDome->transform()->setScale(Vector3(250.0f, 250.0f, 250.0f));
     StaticMesh *mesh    = m_pDome->addComponent<StaticMesh>();
     if(mesh) {

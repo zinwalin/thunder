@@ -20,6 +20,8 @@ class Actor;
 class Scene;
 class Texture;
 
+class Pipeline;
+
 class ObjectCtrl : public CameraCtrl {
     Q_OBJECT
 
@@ -38,7 +40,11 @@ public:
     };
 
 public:
-    ObjectCtrl          (Viewport *view);
+    ObjectCtrl          (QOpenGLWidget *view);
+
+    ~ObjectCtrl         ();
+
+    void                init                        (Scene *scene);
 
     void                drawHandles                 ();
 
@@ -62,10 +68,13 @@ public:
 public slots:
     void                onInputEvent                (QInputEvent *);
 
-    void                onComponentSelected         (const QString &path);
+    void                onCreateSelected            (const QString &name);
+    void                onDeleteComponent           (const QString &name);
+    void                onUpdateSelected            ();
 
     void                onDrop                      ();
     void                onDragEnter                 (QDragEnterEvent *);
+    void                onDragMove                  (QDragMoveEvent *);
     void                onDragLeave                 (QDragLeaveEvent *);
 
     void                onSelectActor               (Object::ObjectList list, bool undo = true);
@@ -92,7 +101,7 @@ signals:
 protected:
     void                drawHelpers                 (Object &object);
 
-    void                selectGeometry              (Vector2 &, Vector2 &);
+    void                selectGeometry              (Vector2 &, Vector2 &size);
 
     Vector3             objectPosition              ();
 
@@ -116,7 +125,7 @@ protected:
 
     uint8_t             mAxes;
 
-    float               mMoveGrid;
+    Vector3             mMoveGrid;
     float               mAngleGrid;
     float               mScaleGrid;
 
@@ -124,6 +133,8 @@ protected:
 
     Texture            *m_pDepth;
     Texture            *m_pSelect;
+
+    Pipeline           *m_pPipeline;
 
     Object::ObjectList  m_DragObjects;
 
@@ -133,10 +144,14 @@ protected:
     Vector2             m_Screen;
 
     Vector3             mWorld;
-    Vector3             mSaved;
+    Vector3             mSavedWorld;
     Vector3             mPosition;
 
+    Vector3             mMouseWorld;
+
     UndoManager::PropertyObjects   *m_pPropertyState;
+
+    list<uint32_t>      m_ObjectsList;
 };
 
 #endif // OBJECTCTRL_H

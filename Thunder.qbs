@@ -11,9 +11,10 @@ Project {
     property string BUILDER_NAME: "Builder"
     property string COPYRIGHT_AUTHOR: "Evgeniy Prikazchikov"
 
+    property string ANDROID: "android-21"
     property string PLATFORM: {
         var arch = qbs.architecture;
-        if(qbs.targetOS.contains("darwin") || qbs.targetOS.contains("linux")) {
+        if(qbs.targetOS.contains("darwin") || qbs.targetOS[0] === "linux") {
             arch = "x86_64"
         }
         return qbs.targetOS[0] + "/" + arch;
@@ -61,6 +62,8 @@ Project {
     property string BIN_PATH: PLATFORM_PATH + "/bin"
     property string LIB_PATH: PLATFORM_PATH + "/lib"
     property string INC_PATH: SDK_PATH + "/include"
+    property string TOOLS_PATH: SDK_PATH + "/tools"
+    property string PLUGINS_PATH: BIN_PATH + "/plugins"
 
     property stringList defines: {
         var result  = [
@@ -83,9 +86,11 @@ Project {
         "engine/engine.qbs",
         "modules/media/media.qbs",
         "modules/renders/rendergl/rendergl.qbs",
+        "modules/vms/angel/angel.qbs",
         "worldeditor/worldeditor.qbs",
         "builder/builder.qbs",
-        "build/install.qbs"
+        "build/install.qbs",
+        "build/qbsinstall.qbs"
     ]
 }
 

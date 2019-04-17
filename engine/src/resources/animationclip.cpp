@@ -3,31 +3,48 @@
 #define TRACKS  "Tracks"
 
 void AnimationClip::loadUserData(const VariantMap &data) {
-    PROFILE_FUNCTION()
-
+    PROFILE_FUNCTION();
     {
         auto section = data.find(TRACKS);
         if(section != data.end()) {
-            for(auto t : (*section).second.value<VariantList>()) {
-                VariantList tracks  = t.toList();
-                auto i          = tracks.begin();
+            for(auto it : (*section).second.value<VariantList>()) {
+                VariantList trackList = it.toList();
+                auto i = trackList.begin();
+
                 Track track;
-                track.path      = (*i).toString();
+                track.path = (*i).toString();
                 i++;
-                track.property  = (*i).toString();
+                track.property = (*i).toString();
                 i++;
-                for(auto c : (*i).toList()) {
-                    VariantList keys    = c.toList();
-                    auto k      = keys.begin();
-                    KeyFrame key;
-                    key.mPosition   = (*k).toFloat();
-                    k++;
-                    key.mType       = (KeyFrame::Type)(*k).toInt();
-                    k++;
-                    key.mValue      = (*k);
-                    k++;
-                    key.mSupport    = (*k);
-                    track.curve.push_back(key);
+
+                for(auto it : (*i).toList()) {
+                    VariantList curveList = it.toList();
+                    auto t = curveList.begin();
+
+                    int32_t component = (*t).toInt();
+                    t++;
+
+                    AnimationCurve curve;
+                    while(t != curveList.end()) {
+                        VariantList keyList = (*t).toList();
+                        auto k = keyList.begin();
+
+                        AnimationCurve::KeyFrame key;
+                        key.m_Position = static_cast<uint32_t>((*k).toInt());
+                        k++;
+                        key.m_Type = static_cast<AnimationCurve::KeyFrame::Type>((*k).toInt());
+                        k++;
+                        key.m_Value = (*k).toFloat();
+                        k++;
+                        key.m_LeftTangent = (*k).toFloat();
+                        k++;
+                        key.m_RightTangent = (*k).toFloat();
+
+                        curve.m_Keys.push_back(key);
+
+                        t++;
+                    }
+                    track.curves[component] = curve;
                 }
                 m_Tracks.push_back(track);
             }
@@ -35,6 +52,16 @@ void AnimationClip::loadUserData(const VariantMap &data) {
     }
 }
 
-bool AnimationClip::compare(const KeyFrame &first, const KeyFrame &second) {
-    return ( first.mPosition < second.mPosition );
+uint32_t AnimationClip::duration() const {
+    uint32_t result = 0;
+    for(auto track : m_Tracks) {
+        for(auto curve : track.curves) {
+            result = MAX(curve.second.m_Keys.back().m_Position, result);
+        }
+    }
+    return result;
+}
+
+bool AnimationClip::compare(const AnimationCurve::KeyFrame &first, const AnimationCurve::KeyFrame &second) {
+    return ( first.m_Position < second.m_Position );
 }

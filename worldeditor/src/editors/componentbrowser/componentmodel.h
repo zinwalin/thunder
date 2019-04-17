@@ -3,17 +3,19 @@
 
 #include "baseobjectmodel.h"
 
-#include <patterns/asingleton.h>
-
 class Engine;
 
-class ComponentModel : public BaseObjectModel, public ASingleton<ComponentModel> {
+class ComponentModel : public BaseObjectModel {
     Q_OBJECT
 
 public:
+    static ComponentModel  *instance        ();
+
+    static void             destroy         ();
+
     void                    init            (Engine *engine);
 
-    int                     columnCount     (const QModelIndex &parent) const;
+    int                     columnCount     (const QModelIndex &) const;
 
     QVariant                headerData      (int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const;
 
@@ -22,14 +24,14 @@ public:
 protected slots:
     void                    update          ();
 
-protected:
-    friend class ASingleton<ComponentModel>;
-
+private:
     ComponentModel          ();
     ~ComponentModel         () {}
 
+    static ComponentModel  *m_pInstance;
+
 protected:
-    Engine                *m_pEngine;
+    Engine                 *m_pEngine;
 
 };
 

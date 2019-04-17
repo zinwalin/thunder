@@ -25,9 +25,9 @@
 #include <vector>
 #include <string>
 
-#include "common.h"
+#include <global.h>
 
-#include "math/amath.h"
+#include "amath.h"
 #include "metatype.h"
 
 using namespace std;
@@ -38,7 +38,7 @@ typedef map<string, Variant>    VariantMap;
 typedef list<Variant>           VariantList;
 typedef vector<int8_t>          ByteArray;
 
-#if __ANDROID__
+#ifdef __ANDROID__
 #include <sstream>
 string to_string(auto v) {
     ostringstream ss;

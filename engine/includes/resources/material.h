@@ -47,7 +47,8 @@ protected:
 };
 
 class NEXT_LIBRARY_EXPORT Material : public Object {
-    A_REGISTER(Material, Object, Resources);
+    A_REGISTER(Material, Object, Resources)
+
 public:
     enum MaterialType {
         Surface,
@@ -113,8 +114,6 @@ protected:
     MaterialType                m_MaterialType;
 
     bool                        m_DoubleSided;
-
-    bool                        m_Tangent;
 
     bool                        m_DepthTest;
 

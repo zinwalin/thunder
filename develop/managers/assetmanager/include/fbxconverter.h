@@ -23,10 +23,9 @@ class FBXConverter : public IConverter {
 public:
     FBXConverter                ();
 
-    ~FBXConverter               ();
-
-    string                      format                  () const;
-    uint32_t                    type                    () const;
+    QStringList suffixes() const { return {"fbx"}; }
+    uint32_t                    contentType             () const { return ContentMesh; }
+    uint32_t                    type                    () const { return MetaType::type<Mesh *>(); }
     uint8_t                     convertFile             (IConverterSettings *);
 
 protected:

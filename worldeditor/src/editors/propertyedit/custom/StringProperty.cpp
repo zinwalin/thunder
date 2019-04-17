@@ -11,8 +11,9 @@ StringProperty::~StringProperty() {
 }
 
 QWidget *StringProperty::createEditor(QWidget *parent, const QStyleOptionViewItem &option) {
+    Q_UNUSED(option);
     m_Editor = new StringEdit(parent);
-    connect(m_Editor, SIGNAL(textEdited(QString)), this, SLOT(onDataChanged(QString)));
+    connect(m_Editor, SIGNAL(editFinished()), this, SLOT(onDataChanged()));
     return m_Editor;
 }
 
@@ -39,6 +40,6 @@ QSize StringProperty::sizeHint(const QSize& size) const {
     return QSize(size.width(), 26);
 }
 
-void StringProperty::onDataChanged(const QString &data) {
-    setValue(QVariant(data));
+void StringProperty::onDataChanged() {
+    setValue(QVariant(static_cast<StringEdit *>(m_Editor)->text()));
 }

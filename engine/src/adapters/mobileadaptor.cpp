@@ -3,25 +3,95 @@
 #include <glfm.h>
 
 #include <log.h>
+#include <file.h>
 
-//Vector3 DesktopAdaptor::m_MouseDelta     = Vector3();
-//Vector3 DesktopAdaptor::m_MousePosition  = Vector3();
+#include "engine.h"
+
+#ifdef GLFM_PLATFORM_ANDROID
+
+#include "androidfile.h"
+#include <android/log.h>
+
+class AndroidHandler : public ILogHandler {
+protected:
+    void setRecord (Log::LogTypes, const char *record) {
+        __android_log_write(ANDROID_LOG_DEBUG, "ThunderEngine", record);
+    }
+};
+#endif
+
+static GLFMDisplay *gDisplay = nullptr;
+static Engine *g_pEngine = nullptr;
+
+Vector2 MobileAdaptor::s_Screen = Vector2();
+
+struct Touch {
+    uint32_t    phase;
+    Vector4     pos;
+};
+typedef map<int, Touch> TouchMap;
+static TouchMap s_Touches;
+
+void onFrame(GLFMDisplay *, const double) {
+    if(g_pEngine) {
+        g_pEngine->update();
+    }
+}
+
+void onCreate(GLFMDisplay *, int width, int height) {
+    MobileAdaptor::s_Screen = Vector2(width, height);
+
+    IFile *file = nullptr;
+#ifdef GLFM_PLATFORM_ANDROID
+    Log::overrideHandler(new AndroidHandler());
+    file = new AndroidFile();
+#endif
+
+    char *path = "";
+    thunderMain(new Engine(file, 1, &path));
+}
+
+void onResize(GLFMDisplay *, int width, int height) {
+    MobileAdaptor::s_Screen = Vector2(width, height);
+    if(g_pEngine) {
+        g_pEngine->resize();
+    }
+}
+
+bool onTouch(GLFMDisplay *, int touch, GLFMTouchPhase phase, double x, double y) {
+    if(phase < GLFMTouchPhaseEnded) {
+        Touch t;
+        t.phase = phase;
+        t.pos = Vector4(x, y, x / MobileAdaptor::s_Screen.x, y / MobileAdaptor::s_Screen.y);
+        s_Touches[touch] = t;
+    } else {
+        auto it = s_Touches.find(touch);
+        if(it != s_Touches.end()) {
+            s_Touches.erase(it);
+        }
+    }
+    return true;
+}
 
 void glfmMain(GLFMDisplay *display) {
-    glfmSetDisplayConfig(display,
-                         GLFMRenderingAPIOpenGLES2,
+    gDisplay = display;
+
+    glfmSetDisplayConfig(gDisplay,
+                         GLFMRenderingAPIOpenGLES3,
                          GLFMColorFormatRGBA8888,
-                         GLFMDepthFormatNone,
+                         GLFMDepthFormat16,
                          GLFMStencilFormatNone,
                          GLFMMultisampleNone);
-    //glfmSetSurfaceCreatedFunc(display, onSurfaceCreated);
-    //glfmSetSurfaceResizedFunc(display, onSurfaceCreated);
-    //glfmSetSurfaceDestroyedFunc(display, onSurfaceDestroyed);
-    //glfmSetMainLoopFunc(display, onFrame);
+
+    glfmSetMainLoopFunc(gDisplay, onFrame);
+    glfmSetSurfaceCreatedFunc(gDisplay, onCreate);
+    glfmSetSurfaceResizedFunc(gDisplay, onResize);
+
+    glfmSetTouchFunc(gDisplay, onTouch);
 }
 
 MobileAdaptor::MobileAdaptor(Engine *engine) {
-    A_UNUSED(engine)
+    g_pEngine = engine;
 }
 
 bool MobileAdaptor::init() {
@@ -48,63 +118,22 @@ bool MobileAdaptor::isValid() {
     return true;
 }
 
-bool MobileAdaptor::key(Input::KeyCode) {
-    return false;
-}
-
-Vector3 MobileAdaptor::mousePosition() {
-    return m_MousePosition;
-}
-
-Vector3 MobileAdaptor::mouseDelta() {
-    return m_MouseDelta;
-}
-
-uint8_t MobileAdaptor::mouseButtons() {
-    return m_MouseButtons;
-}
-
 uint32_t MobileAdaptor::screenWidth() {
-    return 0;
+    return s_Screen.x;
 }
 
 uint32_t MobileAdaptor::screenHeight() {
-    return 0;
+    return s_Screen.y;
 }
 
-void MobileAdaptor::setMousePosition(const Vector3 &) {
+uint32_t MobileAdaptor::touchCount() {
+    return s_Touches.size();
 }
 
-uint16_t MobileAdaptor::joystickCount() {
-    return 0;
+uint32_t MobileAdaptor::touchState(uint32_t index) {
+    return s_Touches[index].phase;
 }
 
-uint16_t MobileAdaptor::joystickButtons(uint8_t) {
-    return 0;
-}
-
-Vector4 MobileAdaptor::joystickThumbs(uint8_t) {
-    return Vector4();
-}
-
-Vector2 MobileAdaptor::joystickTriggers(uint8_t) {
-    return Vector2();
-}
-
-void *MobileAdaptor::pluginLoad(const char *) {
-    return nullptr;
-}
-
-bool MobileAdaptor::pluginUnload(void *) {
-    return false;
-}
-
-void *MobileAdaptor::pluginAddress(void *, const string &) {
-    return nullptr;
-}
-
-string MobileAdaptor::locationLocalDir() {
-    string result;
-
-    return result;
+Vector4 MobileAdaptor::touchPosition(uint32_t index) {
+    return s_Touches[index].pos;
 }

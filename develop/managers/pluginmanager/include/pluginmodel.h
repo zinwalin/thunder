@@ -4,7 +4,9 @@
 #include "baseobjectmodel.h"
 
 #include <stdint.h>
-#include <patterns/asingleton.h>
+#include <variant.h>
+
+#include <file.h>
 
 class QLibrary;
 
@@ -15,17 +17,21 @@ class ISystem;
 class Object;
 class Scene;
 
-typedef QMap<Object *, QString> ComponentMap;
+typedef QMap<Object *, ByteArray> ComponentMap;
 
-class PluginModel : public BaseObjectModel, public ASingleton<PluginModel> {
+class PluginModel : public BaseObjectModel {
     Q_OBJECT
 
 public:
+    static PluginModel         *instance            ();
+
+    static void                 destroy             ();
+
     void                        init                        (Engine *engine);
 
     void                        rescan                      ();
 
-    bool                        loadPlugin                  (const QString &path);
+    bool                        loadPlugin                  (const QString &path, bool reload = false);
 
     int                         columnCount                 (const QModelIndex &) const;
 
@@ -33,35 +39,42 @@ public:
 
     QVariant                    data                        (const QModelIndex &index, int role) const;
 
-    ISystem                    *createSystem                (const QString &name);
+    void                        initSystems                 ();
+
+    void                        updateSystems               (Scene *scene);
 
     void                        addScene                    (Scene *scene);
 
 signals:
-    void                        pluginReloaded              (const QString &path);
+    void                        pluginReloaded              ();
 
     void                        updated                     ();
 
 public slots:
     void                        reloadPlugin                (const QString &path);
 
-protected:
-    friend class ASingleton<PluginModel>;
-
+private:
     PluginModel                 ();
 
+    ~PluginModel                ();
+
+    static PluginModel         *m_pInstance;
+
+protected:
     void                        rescanPath                  (const QString &path);
 
-    void                        registerSystemPlugin        (IModule *plugin);
+    void                        registerSystem              (IModule *plugin);
 
     void                        registerExtensionPlugin     (const QString &path, IModule *plugin);
 
-    void                        serializeComponents         (Object *parent, const std::string &type, ComponentMap &map);
+    void                        serializeComponents         (const StringList &list, ComponentMap &map);
+
+    void                        deserializeComponents       (const ComponentMap &map);
 
 private:
     void                        clear                       ();
 
-    typedef QMap<QString, IModule *>   PluginsMap;
+    typedef QMap<QString, IModule *>    PluginsMap;
 
     typedef QMap<QString, QLibrary *>   LibrariesMap;
 
@@ -69,7 +82,7 @@ private:
 
     QStringList                 m_Suffixes;
 
-    PluginsMap                  m_Systems;
+    QMap<QString, ISystem *>    m_Systems;
 
     PluginsMap                  m_Extensions;
 

@@ -1,58 +1,57 @@
-#include <log.h>
-
 #include "input.h"
 
 #include "adapters/iplatformadaptor.h"
 
-/*!
-    Constructor of Input class.
-    @param[in]  pLog        The pointer to Log object for working with logging system.
-*/
-Input::Input() :
-        m_pPlatform(nullptr) {
-
-}
-
-Input::~Input() {
-
-}
+static IPlatformAdaptor *s_pPlatform = nullptr;
 
 void Input::init(IPlatformAdaptor *platform) {
-    m_pPlatform = platform;
+    s_pPlatform = platform;
 }
 
-bool Input::key(KeyCode code) {
-    return m_pPlatform->key(code);
+bool Input::isKey(KeyCode code) {
+    return s_pPlatform->key(code);
 }
 
-Vector3 Input::mousePosition() {
-    return m_pPlatform->mousePosition();
+Vector4 Input::mousePosition() {
+    return s_pPlatform->mousePosition();
 }
 
-Vector3 Input::mouseDelta() {
-    return m_pPlatform->mouseDelta();
+Vector4 Input::mouseDelta() {
+    return s_pPlatform->mouseDelta();
 }
 
-uint8_t Input::mouseButtons() {
-    return m_pPlatform->mouseButtons();
+uint32_t Input::mouseButtons() {
+    return s_pPlatform->mouseButtons();
 }
 
 void Input::setMousePosition(const Vector3 &position) {
-    m_pPlatform->setMousePosition(position);
+    s_pPlatform->setMousePosition(position);
 }
 
-uint16_t Input::joystickCount() {
-    return m_pPlatform->joystickCount();
+uint32_t Input::joystickCount() {
+    return s_pPlatform->joystickCount();
 }
 
-uint16_t Input::joystickButtons(uint8_t index) {
-    return m_pPlatform->joystickButtons(index);
+uint32_t Input::joystickButtons(uint32_t index) {
+    return s_pPlatform->joystickButtons(index);
 }
 
-Vector4 Input::joystickThumbs(uint8_t index) {
-    return m_pPlatform->joystickThumbs(index);
+Vector4 Input::joystickThumbs(uint32_t index) {
+    return s_pPlatform->joystickThumbs(index);
 }
 
-Vector2 Input::joystickTriggers(uint8_t index) {
-    return m_pPlatform->joystickTriggers(index);
+Vector2 Input::joystickTriggers(uint32_t index) {
+    return s_pPlatform->joystickTriggers(index);
+}
+
+uint32_t Input::touchCount() {
+    return s_pPlatform->touchCount();
+}
+
+uint32_t Input::touchState(uint32_t index) {
+    return s_pPlatform->touchState(index);
+}
+
+Vector4 Input::touchPosition(uint32_t index) {
+    return s_pPlatform->touchPosition(index);
 }

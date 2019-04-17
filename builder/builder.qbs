@@ -29,7 +29,9 @@ Project {
         "../thirdparty/glfw/inc",
         "../thirdparty/fbx/inc",
         "../thirdparty/zlib/src",
-        "../thirdparty/quazip/src"
+        "../thirdparty/quazip/src",
+        "../thirdparty/glsl",
+        "../thirdparty/spirvcross/src"
     ]
 
     QtApplication {
@@ -41,12 +43,15 @@ Project {
         Depends { name: "quazip-editor" }
         Depends { name: "next-editor" }
         Depends { name: "engine-editor" }
+        Depends { name: "glsl" }
+        Depends { name: "spirvcross" }
         Depends { name: "Qt"; submodules: ["core", "gui"]; }
 
         bundle.isBundle: false
 
         cpp.defines: {
             var result  = builder.defines
+            result.push("NEXT_SHARED")
             result.push("BUILDER")
             return result
         }
@@ -60,7 +65,17 @@ Project {
             prefix + "fbxsdk"
         ]
         cpp.cxxLanguageVersion: "c++14"
-        cpp.rpaths: "@executable_path/../Frameworks/"
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.rpaths: "$ORIGIN"
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("darwin")
+            cpp.sonamePrefix: "@rpath"
+            cpp.rpaths: "@executable_path/../Frameworks/"
+        }
 
         Group {
             name: "Install " + builder.BUILDER_NAME

@@ -9,63 +9,64 @@
 #include "object.h"
 
 class MetaObject;
-class ObjectSystemPrivate;
 
 class NEXT_LIBRARY_EXPORT ObjectSystem : public Object {
 public:
-    typedef unordered_map<string, const MetaObject *>   FactoryMap;
+    typedef pair<const MetaObject *, ObjectSystem *>    FactoryPair;
+    typedef unordered_map<string, FactoryPair>          FactoryMap;
     typedef unordered_map<string, string>               GroupMap;
 
 public:
-    ObjectSystem                        (const string &name = "system");
+    ObjectSystem                        ();
     ~ObjectSystem                       ();
+
+    virtual void                        update                  ();
 
     GroupMap                            factories               () const;
 
+    static FactoryPair                 *metaFactory             (const string &uri);
+
 public:
-    static ObjectSystem                *instance                ();
-
-    static Object                      *objectCreate            (const string &uri, const string &name = string(), Object *parent = 0);
-
     template<typename T>
-    static T                           *objectCreate            (const string &name = string(), Object *parent = 0) {
+    static T                           *objectCreate            (const string &name = string(), Object *parent = nullptr) {
         return dynamic_cast<T *>(objectCreate(T::metaClass()->name(), name, parent));
     }
 
-    template<typename T>
-    static void                         factoryAdd              (const string &group, const MetaObject *meta) {
-        string name = T::metaClass()->name();
-        string uri  = string("thor://") + group + "/" + name;
-        ObjectSystem *inst = ObjectSystem::instance();
-        inst->factoryAdd(name, uri, meta);
+    static Object                      *objectCreate            (const string &uri, const string &name = string(), Object *parent = nullptr);
 
-        name += " *";
-        if(MetaType::type(name.c_str()) == 0) {
-            registerMetaType<T *>(name.c_str());
-        }
+    template<typename T>
+    void                                factoryAdd              (const string &group, const MetaObject *meta) {
+        string name = T::metaClass()->name();
+        factoryAdd(name, string("thor://") + group + "/" + name, meta);
     }
 
     template<typename T>
-    static void                         factoryRemove           (const string &group) {
+    void                                factoryRemove           (const string &group) {
         const char *name    = T::metaClass()->name();
-        ObjectSystem::instance()->factoryRemove(name, string("thor://") + group + "/" + name);
+        factoryRemove(name, string("thor://") + group + "/" + name);
     }
 
     static Variant                      toVariant               (const Object *object);
-    static Object                      *toObject                (const Variant &variant);
+    static Object                      *toObject                (const Variant &variant, Object *root = nullptr);
 
     static uint32_t                     generateUID             ();
 
-private:
-    friend class ObjectSystemTest;
+protected:
+    static void                         processObject           (Object *object);
 
     void                                factoryAdd              (const string &name, const string &uri, const MetaObject *meta);
 
     void                                factoryRemove           (const string &name, const string &uri);
 
-    void                                factoryClear            ();
+private:
+    friend class ObjectSystemTest;
+    friend class Object;
 
-    ObjectSystemPrivate                *p_ptr;
+    void                                removeObject            (Object *object);
+
+protected:
+    Object::ObjectList                  m_List;
+
 };
 
 #endif // OBJECTSYSTEM_H

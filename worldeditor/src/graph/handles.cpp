@@ -10,9 +10,11 @@
 #include "handletools.h"
 
 #define SIDES 32
-#define ALPHA 0.3
+#define ALPHA 0.3f
 
-#define OVERRIDE "texture0"
+#define CONTROL_SIZE 90.0f
+
+#define OVERRIDE "uni.texture0"
 
 Vector4 Handles::s_Normal   = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 Vector4 Handles::s_Selected = Vector4(1.0f, 1.0f, 0.0f, 1.0f);
@@ -24,10 +26,9 @@ Vector4 Handles::s_Color    = Handles::s_Normal;
 Vector4 Handles::s_Second   = Handles::s_Normal;
 
 Vector2 Handles::m_sMouse   = Vector2();
+Vector2 Handles::m_sScreen  = Vector2();
 
-const Vector4 grey(0.3, 0.3, 0.3, 0.6);
-
-Camera *Handles::s_ActiveCamera = nullptr;
+const Vector4 grey(0.3f, 0.3f, 0.3f, 0.6f);
 
 uint8_t Handles::s_Axes     = 0;
 
@@ -79,6 +80,7 @@ void Handles::init() {
 
     if(s_Lines == nullptr) {
         s_Lines = Engine::objectCreate<Mesh>("Lines");
+        s_Lines->makeDynamic();
     }
 
     if(s_Move == nullptr) {
@@ -146,7 +148,7 @@ void Handles::init() {
 
 void Handles::beginDraw(ICommandBuffer *buffer) {
     Matrix4 v, p;
-    s_ActiveCamera->matrices(v, p);
+    Camera::current()->matrices(v, p);
 
     HandleTools::setViewProjection(v, p);
 
@@ -176,11 +178,10 @@ void Handles::drawLines(const Matrix4 &transform, const Vector3Vector &points, c
     lod.vertices    = points;
     lod.indices     = indices;
     {
-        s_Lines->clear();
         Mesh::Surface surface;
         surface.mode    = Mesh::MODE_LINES;
         surface.lods.push_back(lod);
-        s_Lines->addSurface(surface);
+        s_Lines->setSurface(0, surface);
         s_Lines->apply();
     }
     s_Buffer->setColor(s_Color);
@@ -212,7 +213,7 @@ void Handles::drawAABB(AABBox &box) {
 bool Handles::drawBillboard(const Vector3 &position, const Vector2 &size, Texture *texture) {
     bool result = false;
     Matrix4 model(position, Quaternion(), Vector3(size, 1.0));
-    Matrix4 q   = model * Matrix4(Vector3(), s_ActiveCamera->actor().transform()->rotation(), Vector3(1.0));
+    Matrix4 q   = model * Matrix4(Vector3(), Camera::current()->actor()->transform()->rotation(), Vector3(1.0));
 
     if(HandleTools::distanceToPoint(q, Vector3()) <= sense) {
         result = true;
@@ -226,14 +227,17 @@ bool Handles::drawBillboard(const Vector3 &position, const Vector2 &size, Textur
 
 Vector3 Handles::moveTool(const Vector3 &position, bool locked) {
     Vector3 result  = position;
-    if(s_ActiveCamera) {
-        float scale = 1.0f;
-        if(!s_ActiveCamera->orthographic()) {
-            scale   = (position - s_ActiveCamera->actor().transform()->position()).length() * cos(s_ActiveCamera->fov() * DEG2RAD) * 0.295f; /// \todo Magic
-        } else {
-            scale  *= s_ActiveCamera->orthoWidth() * 0.04f;
-        }
 
+    Camera *camera  = Camera::current();
+    if(camera) {
+        Vector3 normal = position - camera->actor()->transform()->position();
+        float scale = 1.0f;
+        if(!camera->orthographic()) {
+            scale = normal.length();
+        } else {
+            scale = camera->orthoHeight();
+        }
+        scale *= (CONTROL_SIZE / m_sScreen.y);
         Matrix4 model(position, Quaternion(), scale);
 
         Matrix4 x   = model * Matrix4(Vector3(conesize, 0, 0), Quaternion(Vector3(0, 0, 1),-90) * Quaternion(Vector3(0, 1, 0),-90), conesize);
@@ -306,7 +310,7 @@ Vector3 Handles::moveTool(const Vector3 &position, bool locked) {
 
         Plane plane;
         plane.point     = position;
-        plane.normal    = s_ActiveCamera->actor().transform()->rotation() * Vector3(0.0, 0.0, 1.0);
+        plane.normal    = camera->actor()->transform()->rotation() * Vector3(0.0, 0.0, 1.0);
         if(s_Axes == AXIS_X || s_Axes == AXIS_Z) {
             plane.normal    = Vector3(0.0f, plane.normal.y, plane.normal.z);
         } else if(s_Axes == (AXIS_X | AXIS_Y)) {
@@ -314,12 +318,12 @@ Vector3 Handles::moveTool(const Vector3 &position, bool locked) {
         } else if(s_Axes == (AXIS_Z | AXIS_Y)) {
             plane.normal    = Vector3(1.0f, 0.0f, 0.0f);
         } else if(s_Axes == AXIS_Y || s_Axes == (AXIS_X | AXIS_Y | AXIS_Z)) {
-            plane.normal    = s_ActiveCamera->actor().transform()->rotation() * Vector3(0.0, 0.0, 1.0);
+            plane.normal    = camera->actor()->transform()->rotation() * Vector3(0.0, 0.0, 1.0);
             plane.normal    = Vector3(plane.normal.x, 0.0f, plane.normal.z);
         }
         plane.d = plane.normal.dot(plane.point);
 
-        Ray ray = s_ActiveCamera->castRay(m_sMouse.x, m_sMouse.y);
+        Ray ray = camera->castRay(m_sMouse.x, m_sMouse.y);
         Vector3 point;
         ray.intersect(plane, &point, true);
         if(s_Axes & AXIS_X) {
@@ -331,22 +335,24 @@ Vector3 Handles::moveTool(const Vector3 &position, bool locked) {
         if(s_Axes & AXIS_Z) {
             result.z    = point.z;
         }
+
     }
 
     return result;
 }
 
 Vector3 Handles::rotationTool(const Vector3 &position, bool locked) {
-    if(s_ActiveCamera) {
-        float scale     = 1.0f;
-        Transform *t    = s_ActiveCamera->actor().transform();
-        if(!s_ActiveCamera->orthographic()) {
-            scale   = ((position - t->position()).length() * cos(s_ActiveCamera->fov() / 2 * DEG2RAD) * 0.2f);
+    Camera *camera  = Camera::current();
+    if(camera) {
+        Transform *t = camera->actor()->transform();
+        Vector3 normal = position - t->position();
+        float scale = 1.0f;
+        if(!camera->orthographic()) {
+            scale = normal.length();
         } else {
-            scale  *= s_ActiveCamera->orthoWidth() * 0.0475f; /// \todo Magic
+            scale = camera->orthoHeight();
         }
-
-        Vector3 normal  = position - t->position();
+        scale *= (CONTROL_SIZE / m_sScreen.y);
         normal.normalize();
 
         Matrix4 model(position, Quaternion(), scale);
@@ -361,7 +367,7 @@ Vector3 Handles::rotationTool(const Vector3 &position, bool locked) {
                                                  Quaternion(Vector3(90, 0, 0)), Vector3(conesize));
 
         Matrix4 m;
-        m.scale(1.2);
+        m.scale(1.2f);
 
         if(!locked) {
             if((HandleTools::distanceToMesh(q1 * m, s_Move, CIRCLE) <= sense) ||
@@ -403,15 +409,16 @@ Vector3 Handles::rotationTool(const Vector3 &position, bool locked) {
 }
 
 Vector3 Handles::scaleTool(const Vector3 &position, bool locked) {
-    if(s_ActiveCamera) {
-        Vector3 normal  = position - s_ActiveCamera->actor().transform()->position();
-        float size      = 1.0f;
-        if(!s_ActiveCamera->orthographic()) {
-            size    = normal.length() * cos(s_ActiveCamera->fov() / 2 * DEG2RAD) * 0.2f;
+    Camera *camera  = Camera::current();
+    if(camera) {
+        Vector3 normal = position - camera->actor()->transform()->position();
+        float size = 1.0f;
+        if(!camera->orthographic()) {
+            size = normal.length();
         } else {
-            size   *= s_ActiveCamera->orthoWidth() * 0.0475f; /// \todo Magic
+            size = camera->orthoHeight();
         }
-
+        size *= (CONTROL_SIZE / m_sScreen.y);
         Vector3 scale(((normal.x < 0) ? 1 : -1) * size,
                       ((normal.y < 0) ? 1 : -1) * size,
                       ((normal.z < 0) ? 1 : -1) * size);

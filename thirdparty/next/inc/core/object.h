@@ -26,7 +26,7 @@
 #include <queue>
 #include <list>
 
-#include "common.h"
+#include <global.h>
 
 #include "variant.h"
 
@@ -36,29 +36,32 @@
 #define A_REGISTER(Class, Super, Group) \
     A_OBJECT(Class, Super) \
 public: \
-    static void                     registerClassFactory    () { \
-        ObjectSystem::factoryAdd<Class>(#Group, Class::metaClass()); \
+    static void                     registerClassFactory    (ObjectSystem *system) { \
+        REGISTER_META_TYPE(Class); \
+        system->factoryAdd<Class>(#Group, Class::metaClass()); \
     } \
-    static void                     unregisterClassFactory  () { \
-        ObjectSystem::factoryRemove<Class>(#Group); \
+    static void                     unregisterClassFactory  (ObjectSystem *system) { \
+        UNREGISTER_META_TYPE(Class); \
+        system->factoryRemove<Class>(#Group); \
     }
 
 
 #define A_OVERRIDE(Class, Super, Group) \
     A_OBJECT(Class, Super) \
 public: \
-    static void                     registerClassFactory    () { \
-        ObjectSystem::factoryAdd<Super>(#Group, Class::metaClass()); \
+    static void                     registerClassFactory    (ObjectSystem *system) { \
+        system->factoryAdd<Super>(#Group, Class::metaClass()); \
     } \
-    static void                     unregisterClassFactory  () { \
-        ObjectSystem::factoryRemove<Super>(#Group); \
-        ObjectSystem::factoryAdd<Super>(#Group, Super::metaClass()); \
+    static void                     unregisterClassFactory  (ObjectSystem *system) { \
+        system->factoryRemove<Super>(#Group); \
+        system->factoryAdd<Super>(#Group, Super::metaClass()); \
     } \
     virtual string                  typeName                () const { \
         return Super::metaClass()->name(); \
     }
 
 class ObjectPrivate;
+class ObjectSystem;
 
 class NEXT_LIBRARY_EXPORT Object {
 public:
@@ -89,7 +92,7 @@ public:
     static const MetaObject        *metaClass                   ();
     virtual const MetaObject       *metaObject                  () const;
 
-    virtual Object                 *clone                       ();
+    Object                         *clone                       ();
 
     Object                         *parent                      () const;
 
@@ -97,7 +100,7 @@ public:
 
     uint32_t                        uuid                        () const;
 
-    static void                     connect                     (Object *sender, const char *signal, Object *receiver, const char *method);
+    static bool                     connect                     (Object *sender, const char *signal, Object *receiver, const char *method);
     static void                     disconnect                  (Object *sender, const char *signal, Object *receiver, const char *method);
 
     void                            deleteLater                 ();
@@ -153,15 +156,30 @@ public:
 
     virtual bool                    event                       (Event *event);
 
+    virtual void                    loadData                    (const VariantList &data);
     virtual void                    loadUserData                (const VariantMap &data);
 
+    virtual VariantList             saveData                    () const;
     virtual VariantMap              saveUserData                () const;
+
+    virtual bool                    isSerializable              () const;
+
+    uint32_t                        clonedFrom                  () const;
+
+    virtual bool                    operator==                  (const Object &) const final { return false; }
+    virtual bool                    operator!=                  (const Object &) const final { return false; }
 
 protected:
     void                            emitSignal                  (const char *signal, const Variant &args = Variant());
     void                            postEvent                   (Event *event);
 
+    VariantList                     serializeData               (const MetaObject *meta) const;
+
+    virtual void                    addChild                    (Object *value);
+
     Object                         *sender                      () const;
+
+    ObjectSystem                   *system                      () const;
 
 private:
     friend class ObjectTest;
@@ -169,19 +187,13 @@ private:
     friend class ObjectSystem;
 
 private:
-    void                            processEvents               ();
+    virtual void                    processEvents               ();
 
-    void                            addChild                    (Object *value);
     void                            removeChild                 (Object *value);
 
     void                            setUUID                     (uint32_t id);
 
-    bool                            operator==                  (const Object &) const { return false; }
-    bool                            operator!=                  (const Object &) const { return false; }
-
-    Object                         &operator=                   (Object &);
-
-    Object                          (const Object &);
+    void                            setSystem                   (ObjectSystem *system);
 };
 
 #endif // Object_H

@@ -5,11 +5,11 @@ import qbs.Environment
 Product {
     id: install
     name: "_install"
+    condition: install.desktop
 
     Depends { name: "cpp" }
     Depends {
         name: "Qt.core"
-        condition: install.desktop
     }
 
     property string suffix: {
@@ -22,29 +22,31 @@ Product {
     }
 
     property var pluginFiles: {
+        var files = []
         if(qbs.targetOS.contains("windows")) {
             if(qbs.debugInformation) {
-                return ["*d.dll"];
+                files.push("**/*d.dll");
             } else {
-                return ["*.dll"];
+                files.push("**/*.dll");
             }
         } else if(qbs.targetOS.contains("linux")) {
-            return ["*.so"];
+            files.push("**/*.so");
+        } else {
+            files.push("*");
         }
-        return ["*"];
+        return files;
     }
 
     property var pluginExcludeFiles: {
         var files = ["*.pdb"];
         if (!(qbs.targetOS.contains("windows") && qbs.debugInformation)) {
-            files.push("*d.dll");
+            files.push("**/*d.dll");
         }
         return files;
     }
 
     Group {
         name: "Qt DLLs"
-        condition: install.desktop && !qbs.targetOS.contains("darwin")
         prefix: {
             if (qbs.targetOS.contains("windows")) {
                 return Qt.core.binPath + "/"
@@ -53,29 +55,28 @@ Product {
             }
         }
 
-		property string libPrefix: {
-            var result = "";
-            if (qbs.targetOS.contains("linux"))
-                result = "lib";
-            return result;
-        }
-		
-        property string libPostfix: {
-            var suffix = "";
-            if (qbs.targetOS.contains("windows") && qbs.debugInformation)
-                suffix += "d";
-            return suffix + cpp.dynamicLibrarySuffix;
-        }
         files: {
             var list = [];
             if (!Qt.core.frameworkBuild) {
+                var libPrefix = (qbs.targetOS.contains("linux")) ? "lib" : ""
+                var libPostfix = ((qbs.targetOS.contains("windows") && qbs.debugInformation) ? "d": "") + cpp.dynamicLibrarySuffix
+                if(qbs.targetOS.contains("linux")) {
+                    libPostfix += "." + Qt.core.versionMajor + "." + Qt.core.versionMinor + "." + Qt.core.versionPatch
+                }
+
                 list.push(
                     libPrefix + "Qt5Core" + libPostfix,
                     libPrefix + "Qt5Gui" + libPostfix,
                     libPrefix + "Qt5Widgets" + libPostfix,
                     libPrefix + "Qt5Script" + libPostfix,
                     libPrefix + "Qt5Xml" + libPostfix,
-                    libPrefix + "Qt5Network" + libPostfix
+                    libPrefix + "Qt5Network" + libPostfix,
+                    libPrefix + "Qt5Multimedia" + libPostfix,
+                    libPrefix + "Qt5QuickWidgets" + libPostfix,
+                    libPrefix + "Qt5Quick" + libPostfix,
+                    libPrefix + "Qt5QuickTemplates2" + libPostfix,
+                    libPrefix + "Qt5QuickControls2" + libPostfix,
+                    libPrefix + "Qt5Qml" + libPostfix
                 );
             } else {
                 list.push("**/QtCore.framework/**");
@@ -84,8 +85,14 @@ Product {
                 list.push("**/QtScript.framework/**");
                 list.push("**/QtXml.framework/**");
                 list.push("**/QtNetwork.framework/**");
+                list.push("**/QtMultimedia.framework/**"),
+                list.push("**/QtQml.framework/**");
+                list.push("**/QtQuick.framework/**");
+                list.push("**/Qt5QuickTemplates2.framework/**");
+                list.push("**/Qt5QuickControls2.framework/**");
+                list.push("**/QtQuickWidgets.framework/**");
             }
-            return list;
+            return list
         }
         qbs.install: install.desktop
         qbs.installDir: install.BIN_PATH + "/" + install.bundle + (qbs.targetOS.contains("darwin") ? "../Frameworks/" : "")
@@ -102,7 +109,6 @@ Product {
 
     Group {
         name: "Qt Image Format Plugins"
-        condition: install.desktop && !qbs.targetOS.contains("darwin")
         prefix: FileInfo.joinPaths(Qt.core.pluginPath, "/imageformats/")
         files: pluginFiles
         excludeFiles: pluginExcludeFiles
@@ -113,13 +119,27 @@ Product {
 
     Group {
         name: "Qt Platform Plugins"
-        condition: install.desktop && !qbs.targetOS.contains("darwin")
         prefix: FileInfo.joinPaths(Qt.core.pluginPath, "/platforms/")
         files: pluginFiles
         excludeFiles: pluginExcludeFiles
         qbs.install: true
         qbs.installDir: install.BIN_PATH + "/" + install.bundle + "/platforms"
         qbs.installPrefix: install.PREFIX
+    }
+
+    Group {
+        name: "QML Plugins"
+        prefix: FileInfo.joinPaths(Qt.core.pluginPath, "/../qml/")
+        files: [
+            "QtGraphicalEffects/**",
+            "QtQuick/Controls.2/**",
+            "QtQuick.2/**"
+        ]
+        excludeFiles: pluginExcludeFiles
+        qbs.install: true
+        qbs.installDir: install.BIN_PATH + "/" + install.bundle + "/qml"
+        qbs.installPrefix: install.PREFIX
+        qbs.installSourceBase: prefix
     }
 
     Group {
@@ -148,7 +168,6 @@ Product {
 
     Group {
         name: "FBX Binary"
-        condition: install.desktop
         files: [
             "../thirdparty/fbx/lib/libfbxsdk" + suffix
         ]
@@ -170,7 +189,6 @@ Product {
 
     Group {
         name: "Shaders Engine"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/engine/shaders/*"
         ]
@@ -180,7 +198,6 @@ Product {
     }
     Group {
         name: "Materials Engine"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/engine/materials/*"
         ]
@@ -190,7 +207,6 @@ Product {
     }
     Group {
         name: "Materials Editor"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/editor/materials/*"
         ]
@@ -200,7 +216,6 @@ Product {
     }
     Group {
         name: "Meshes Engine"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/engine/meshes/*"
         ]
@@ -210,7 +225,6 @@ Product {
     }
     Group {
         name: "Meshes Editor"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/editor/meshes/*"
         ]
@@ -220,7 +234,6 @@ Product {
     }
     Group {
         name: "Templates Editor"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/editor/templates/*"
         ]
@@ -230,7 +243,6 @@ Product {
     }
     Group {
         name: "Textures Engine"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/engine/textures/*"
         ]
@@ -240,7 +252,6 @@ Product {
     }
     Group {
         name: "Textures Editor"
-        condition: install.desktop
         files: [
             install.RESOURCE_ROOT + "/editor/textures/*"
         ]
@@ -250,7 +261,6 @@ Product {
     }
     Group {
         name: "Next includes"
-        condition: install.desktop
         prefix: "../thirdparty/next/inc/"
         files: [
             "**"
@@ -262,14 +272,12 @@ Product {
     }
     Group {
         name: "Engine includes"
-        condition: install.desktop
         prefix: "../engine/includes/"
         files: [
             "**/*.h"
         ]
         excludeFiles: [
-            "adapters/*.h",
-            "patterns/*.h"
+            "adapters/*.h"
         ]
         qbs.install: true
         qbs.installDir: install.INC_PATH + "/engine"
@@ -277,7 +285,6 @@ Product {
     }
     Group {
         name: "RenderGL includes"
-        condition: install.desktop
         prefix: "../modules/renders/rendergl/includes/"
         files: [
             "**/rendergl.h"
@@ -285,58 +292,5 @@ Product {
         qbs.install: true
         qbs.installDir: install.INC_PATH + "/engine"
         qbs.installPrefix: install.PREFIX
-    }
-
-    property string qbsPath: install.BIN_PATH + "/" + install.bundle
-
-    Group {
-        name: "QBS Bin"
-        condition: install.desktop
-        prefix: "../thirdparty/qbs/" + qbs.targetOS[0]
-        files: [
-            "/bin/**"
-        ]
-        qbs.install: true
-        qbs.installDir: install.qbsPath
-        qbs.installPrefix: install.PREFIX
-    }
-    Group {
-        name: "QBS Lib"
-        condition: install.desktop
-        prefix: "../thirdparty/qbs/" + qbs.targetOS[0]
-        files: [
-            "/lib/*"
-        ]
-        qbs.install: true
-        qbs.installDir: install.qbsPath + (qbs.targetOS.contains("darwin") ? "../Frameworks/" : "")
-        qbs.installPrefix: install.PREFIX
-    }
-    Group {
-        name: "QBS Plugins"
-        condition: install.desktop
-        prefix: "../thirdparty/qbs/" + qbs.targetOS[0]
-        files: [
-            "/lib/qbs/**",
-            "/libexec/**"
-        ]
-        qbs.install: true
-        qbs.installDir: install.qbsPath + "../"
-        qbs.installPrefix: install.PREFIX
-        qbs.installSourceBase: prefix
-    }
-    Group {
-        name: "QBS Share"
-        condition: install.desktop
-        prefix: "../thirdparty/qbs/"
-        files: [
-            "share/**"
-        ]
-        excludeFiles: [
-            "share/**/*.ts"
-        ]
-        qbs.install: true
-        qbs.installDir: install.qbsPath + "../"
-        qbs.installPrefix: install.PREFIX
-        qbs.installSourceBase: prefix
     }
 }

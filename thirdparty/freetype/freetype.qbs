@@ -61,7 +61,6 @@ Project {
         cpp.includePaths: freetype.incPaths
         cpp.libraryPaths: [ ]
         cpp.dynamicLibraries: [ ]
-        cpp.cxxLanguageVersion: "c++14"
 
         Properties {
             condition: qbs.targetOS.contains("darwin")
@@ -87,11 +86,11 @@ Project {
 
         cpp.defines: ["FT2_BUILD_LIBRARY"]
         cpp.includePaths: freetype.incPaths
-        cpp.cxxLanguageVersion: "c++14"
 
         Properties {
             condition: qbs.targetOS.contains("android")
-            Android.ndk.appStl: "gnustl_shared"
+            Android.ndk.appStl: "gnustl_static"
+            Android.ndk.platform: freetype.ANDROID
         }
 
         Group {

@@ -8,8 +8,11 @@
 #include <QAction>
 
 #include <object.h>
+#include <invalid.h>
 #include <components/actor.h>
 #include <components/component.h>
+
+#include "config.h"
 
 #include "objecthierarchymodel.h"
 #include "managers/undomanager/undomanager.h"
@@ -40,7 +43,8 @@ protected:
         bool result = true;
         if(m_HideComponents) {
             Object *object  = static_cast<Object *>(sourceModel()->index(sourceRow, 1, sourceParent).internalPointer());
-            result  = (dynamic_cast<Component*>(object) == nullptr);
+            result &= (dynamic_cast<Component*>(object) == nullptr);
+            result &= (dynamic_cast<Invalid*>(object) == nullptr);
         }
         if(!m_List.isEmpty()) {
             result &= checkClassTypeFilter(sourceRow, sourceParent);
@@ -98,6 +102,7 @@ HierarchyBrowser::HierarchyBrowser(QWidget *parent) :
     connect(ui->treeView, SIGNAL(dragStarted(Qt::DropActions)), this, SLOT(onDragStarted(Qt::DropActions)));
     connect(ui->treeView, SIGNAL(dragEnter(QDragEnterEvent *)), this, SLOT(onDragEnter(QDragEnterEvent *)));
     connect(ui->treeView, SIGNAL(dragMove(QDragMoveEvent *)), this, SLOT(onDragMove(QDragMoveEvent *)));
+    connect(ui->treeView, SIGNAL(dragLeave(QDragLeaveEvent*)), this, SLOT(onDragLeave(QDragLeaveEvent*)));
     connect(ui->treeView, SIGNAL(drop(QDropEvent*)), this, SLOT(onDrop(QDropEvent *)));
 
     ui->treeView->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -173,7 +178,7 @@ void HierarchyBrowser::onDrop(QDropEvent *e) {
     Object::ObjectList parents;
     if(e->mimeData()->hasFormat(gMimeObject)) {
         QString path(e->mimeData()->data(gMimeObject));
-        foreach(const QString &it, path.split("\n")) {
+        foreach(const QString &it, path.split(";")) {
             ObjectHierarchyModel *model = static_cast<ObjectHierarchyModel *>(m_pFilter->sourceModel());
             Object *item    = model->findObject(it);
             QModelIndex index   = m_pFilter->mapToSource(ui->treeView->indexAt(e->pos()));
@@ -212,7 +217,7 @@ void HierarchyBrowser::onDragStarted(Qt::DropActions supportedActions) {
             list.push_back(QString::fromStdString(objectPath(object)));
         }
     }
-    mimeData->setData(gMimeObject, qPrintable(list.join("\n")));
+    mimeData->setData(gMimeObject, qPrintable(list.join(";")));
 
     QDrag *drag = new QDrag(this);
     drag->setMimeData(mimeData);
