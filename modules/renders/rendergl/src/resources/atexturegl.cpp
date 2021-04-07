@@ -45,6 +45,8 @@ void ATextureGL::updateTexture() {
     uint32_t target = GL_TEXTURE_2D;
     if(isCubemap()) {
         target = GL_TEXTURE_CUBE_MAP;
+
+        GL_TEXTURE_CUBE_MAP_ARRAY;
     }
 
     uint32_t internal   = GL_RGBA8;
