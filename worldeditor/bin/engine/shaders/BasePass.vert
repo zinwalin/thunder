@@ -4,12 +4,6 @@
 
 #include "Common.vert"
 
-layout(binding = 0) uniform Transform {
-    mat4 model;
-    mat4 view;
-    mat4 projection;
-} t;
-
 layout(location = 0) in vec3 vertex;
 layout(location = 1) in vec2 uv0;
 layout(location = 2) in vec3 normal;
@@ -118,11 +112,11 @@ Vertex billboard(vec3 v, vec3 t, vec3 n, vec4 posRot, vec4 sizeDist) {
     float x     = cos( angle ) * ( v.x ) + sin( angle ) * ( v.y );
     float y     = sin( angle ) * ( v.x ) - cos( angle ) * ( v.y );
 
-    vec3 target = camera.target.xyz;
-    if(camera.projection[2].w < 0.0) {
+    vec3 target = g.cameraTarget.xyz;
+    if(g.cameraProjection[2].w < 0.0) {
         target = posRot.xyz;
     }
-    vec3 normal = normalize( camera.position.xyz - target );
+    vec3 normal = normalize( g.cameraPosition.xyz - target );
     vec3 right  = normalize( cross( vec3(0.0, 1.0, 0.0), normal ) );
     vec3 up     = normalize( cross( normal, right ) );
 
@@ -136,33 +130,33 @@ void main(void) {
 #ifdef INSTANCING
     mat4 model  = instanceMatrix;
 #else
-    mat4 model  = t.model;
+    mat4 model  = l.model;
 #endif
-    mat4 mv     = t.view * model;
+    mat4 mv     = g.view * model;
     mat3 rot    = mat3( model );
 
-    vec3 camera = vec3( t.view[0].w,
-                        t.view[1].w,
-                        t.view[2].w );
+    vec3 camera = vec3( g.view[0].w,
+                        g.view[1].w,
+                        g.view[2].w );
 
 #ifdef TYPE_STATIC
     Vertex vert = staticMesh( vertex, tangent, normal, rot );
 
-    _vertex = t.projection * (mv * vec4(vert.v, 1.0));
+    _vertex = g.projection * (mv * vec4(vert.v, 1.0));
     _view = ( model * vec4(vert.v, 1.0) ).xyz - camera;
 #endif
 
 #ifdef TYPE_BILLBOARD
     Vertex vert = billboard( vertex, tangent, normal, particlePosRot, particleSizeDist );
 
-    _vertex = t.projection * (mv * vec4(vert.v, 1.0));
+    _vertex = g.projection * (mv * vec4(vert.v, 1.0));
     _view = ( model * vec4(vert.v, 1.0) ).xyz - camera;
 #endif
 
 #ifdef TYPE_SKINNED
     Vertex vert = skinnedMesh( vertex, tangent, normal, bones, weights );
 
-    _vertex = t.projection * (t.view * vec4(vert.v, 1.0));
+    _vertex = g.projection * (g.view * vec4(vert.v, 1.0));
     _view = vert.v - camera;
 #endif
 

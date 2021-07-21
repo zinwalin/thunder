@@ -211,6 +211,9 @@ private:
 
     AssetConverterSettings *createSettings() const Q_DECL_OVERRIDE;
 
+    void loadUniforms(const QVariantList &data);
+    QVariantList saveUniforms() const;
+
     Actor *createActor(const QString &guid) const Q_DECL_OVERRIDE;
 
     Node *nodeCreate(const QString &path, int &index) Q_DECL_OVERRIDE;
@@ -235,9 +238,18 @@ private:
     void addPragma(const string &key, const string &value);
     QString loadIncludes(const QString &path, const string &define) const;
 
-    typedef QPair<uint8_t, QVariant> UniformPair;
+private:
+    struct Uniform {
+        QString name;
 
-    typedef map<QString, UniformPair> UniformMap;
+        uint32_t type;
+
+        size_t count;
+
+        QVariant value;
+    };
+
+    typedef QList<Uniform> UniformList;
 
     typedef QPair<QString, uint8_t> TexturePair;
 
@@ -250,7 +262,7 @@ private:
     QStringList m_Functions;
 
     /// Shader uniforms
-    UniformMap m_Uniforms;
+    UniformList m_Uniforms;
     /// Shader uniforms
     TextureList m_Textures;
     /// Shader params

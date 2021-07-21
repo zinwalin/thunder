@@ -423,7 +423,7 @@ bool Handles::drawBillboard(const Vector3 &position, const Vector2 &size, Textur
             result = true;
         }
 
-        s_Sprite->setTexture(OVERRIDE,  texture);
+        s_Sprite->setTexture(OVERRIDE, texture);
         if(s_Buffer) {
             s_Buffer->setColor(s_Color);
             s_Buffer->drawMesh(q, s_Quad, 0, CommandBuffer::TRANSLUCENT, s_Sprite);

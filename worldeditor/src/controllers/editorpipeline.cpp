@@ -51,8 +51,6 @@ public:
         Material *material = Engine::loadResource<Material>(".embedded/outline.mtl");
         if(material) {
             m_material = material->createInstance();
-            m_material->setFloat("width", &m_width);
-            m_material->setVector4("color", &m_color);
         }
 
         m_resultTexture = Engine::objectCreate<Texture>();
@@ -65,6 +63,18 @@ public:
         return "Outline";
     }
 
+    void loadSettings() {
+        QColor color = SettingsManager::instance()->property(qPrintable(outlineColor)).value<QColor>();
+        m_color = Vector4(color.redF(), color.greenF(), color.blueF(), color.alphaF());
+        m_width = SettingsManager::instance()->property(qPrintable(outlineWidth)).toFloat();
+
+        if(m_material) {
+            m_material->setFloat("uni.width", &m_width);
+            m_material->setVector4("uni.color", &m_color);
+        }
+    }
+
+protected:
     float m_width;
     Vector4 m_color;
 };
@@ -181,13 +191,10 @@ void EditorPipeline::onApplySettings() {
     QColor color = SettingsManager::instance()->property(qPrintable(gridColor)).value<QColor>();
     m_SecondaryGridColor = m_PrimaryGridColor = Vector4(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 
-    color = SettingsManager::instance()->property(qPrintable(outlineColor)).value<QColor>();
-    m_pOutline->m_color = Vector4(color.redF(), color.greenF(), color.blueF(), color.alphaF());
-    m_pOutline->m_width = SettingsManager::instance()->property(qPrintable(outlineWidth)).toFloat();
-
     for(auto it : m_PostEffects) {
         it->setEnabled(SettingsManager::instance()->property(qPrintable(postSettings + it->name())).toBool());
     }
+    m_pOutline->loadSettings();
 }
 
 void EditorPipeline::setController(CameraCtrl *ctrl) {

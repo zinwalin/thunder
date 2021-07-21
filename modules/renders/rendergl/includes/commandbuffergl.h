@@ -26,6 +26,8 @@ public:
 
     ~CommandBufferGL() override;
 
+    void begin();
+
     void clearRenderTarget(bool clearColor = true, const Vector4 &color = Vector4(0.0f), bool clearDepth = true, float depth = 1.0f) override;
 
     void drawMesh(const Matrix4 &model, Mesh *mesh, uint32_t sub, uint32_t layer = CommandBuffer::DEFAULT, MaterialInstance *material = nullptr) override;
@@ -61,16 +63,17 @@ public:
     const VariantMap &params() const;
 
 protected:
-    VertexBufferObject m_vertex;
-    FragmentBufferObject m_fragment;
+    GlobalBufferObject m_global;
+    LocalBufferObject m_local;
 
     VariantMap m_Uniforms;
-
     Material::TextureList m_Textures;
 
     Matrix4 m_SaveView;
-
     Matrix4 m_SaveProjection;
+
+    uint32_t m_globalUbo;
+    uint32_t m_localUbo;
 };
 
 #endif // COMMANDBUFFERGL_H

@@ -8,26 +8,65 @@
 
 #include <engine.h>
 
+#define GLOBAL_BIND     0
+#define LOCAL_BIND      1
+
+#define LIGHT_BIND      3
+#define UNIFORM_BIND    4
+
 class CommandBufferGL;
 
-struct VertexBufferObject {
-    Matrix4 m_Model;
-    Matrix4 m_View;
-    Matrix4 m_Projection;
+struct GlobalBufferObject {
+    Matrix4 view;
+    Matrix4 projection;
+    Matrix4 cameraView;
+    Matrix4 cameraProjection;
+    Matrix4 cameraProjectionInv;
+    Matrix4 cameraScreenToWorld;
+    Matrix4 cameraWorldToScreen;
+    Vector4 cameraPosition;
+    Vector4 cameraTarget;
+    Vector4 cameraScreen;
+    Vector4 lightPageSize;
+    Vector4 lightAmbient;
+    float clip;
+    float time;
 };
 
-struct FragmentBufferObject {
-    Vector4 m_Color;
-    float m_Clip;
-    float m_Time;
+struct LocalBufferObject {
+    Matrix4 model;
+    Vector4 color;
 };
 
 class MaterialInstanceGL : public MaterialInstance {
 public:
     MaterialInstanceGL(Material *material);
 
-    bool bind(CommandBufferGL *buffer, const VertexBufferObject &vertex, const FragmentBufferObject &fragment, uint32_t layer);
+    ~MaterialInstanceGL();
 
+    bool bind(CommandBufferGL *buffer, uint32_t layer);
+
+private:
+    void setInteger(const char *name, int32_t *value, int32_t count) override;
+
+    void setFloat(const char *name, float *value, int32_t count) override;
+
+    void setVector2(const char *name, Vector2 *value, int32_t count) override;
+
+    void setVector3(const char *name, Vector3 *value, int32_t count) override;
+
+    void setVector4(const char *name, Vector4 *value, int32_t count) override;
+
+    void setMatrix4(const char *name, Matrix4 *value, int32_t count) override;
+
+    void setValue(const char *name, void *value);
+
+private:
+    uint32_t m_instanceUbo;
+
+    uint8_t *m_uniformBuffer;
+
+    bool m_uniformDirty;
 };
 
 class MaterialGL : public Material {
@@ -51,6 +90,8 @@ class MaterialGL : public Material {
     typedef unordered_map<uint32_t, uint32_t> ObjectMap;
 
 public:
+    MaterialGL();
+
     void loadUserData(const VariantMap &data) override;
 
     uint32_t bind(uint32_t layer, uint16_t vertex);
@@ -58,6 +99,8 @@ public:
     uint32_t getProgram(uint16_t type);
 
     TextureList textures() const { return m_Textures; }
+
+    uint32_t uniformSize() const;
 
 protected:
     uint32_t buildShader(uint16_t type, const string &src = string());
@@ -69,9 +112,13 @@ protected:
     MaterialInstance *createInstance(SurfaceType type = SurfaceType::Static) override;
 
 private:
+    friend class MaterialInstanceGL;
+
     ObjectMap m_Programs;
 
     map<uint16_t, string> m_ShaderSources;
+
+    uint32_t m_uniformSize;
 
 };
 

@@ -38,7 +38,7 @@ MeshEdit::MeshEdit() :
     Scene *scene = ui->preview->scene();
 
     m_pLight = Engine::composeActor("DirectLight", "LightSource", scene);
-    m_pLight->transform()->setQuaternion(Quaternion(Vector3(-30.0f, 45.0f, 0.0f)));
+    m_pLight->transform()->setRotation(Vector3(-30.0f, 45.0f, 0.0f));
     DirectLight *light = static_cast<DirectLight *>(m_pLight->component("DirectLight"));
     if(light) {
         light->setCastShadows(true);

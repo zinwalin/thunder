@@ -165,6 +165,10 @@ void AmbientOcclusion::setSettings(const PostProcessSettings &settings) {
     m_radius = settings.readValue(AMBIENT_RADIUS).toFloat();
     m_bias = settings.readValue(AMBIENT_BIAS).toFloat();
     m_power = settings.readValue(AMBIENT_POWER).toFloat();
+
+    m_material->setFloat("radius", &m_radius);
+    m_material->setFloat("bias", &m_bias);
+    m_material->setFloat("power", &m_power);
 }
 
 uint32_t AmbientOcclusion::layer() const {

@@ -9,13 +9,10 @@
 #include <file.h>
 #include <log.h>
 
-#define MODEL_UNIFORM   0
-#define VIEW_UNIFORM    1
-#define PROJ_UNIFORM    2
+MaterialGL::MaterialGL() :
+    m_uniformSize(0) {
 
-#define COLOR_BIND  3
-#define CLIP_BIND   4
-#define TIMER_BIND  5
+}
 
 void MaterialGL::loadUserData(const VariantMap &data) {
     Material::loadUserData(data);
@@ -59,6 +56,11 @@ void MaterialGL::loadUserData(const VariantMap &data) {
         if(it != data.end()) {
             m_ShaderSources[Static] = (*it).second.toString();
         }
+    }
+
+    m_uniformSize = 0;
+    for(auto &it : m_Uniforms) {
+        m_uniformSize += it.size;
     }
 
     setState(ToBeUpdated);
@@ -202,24 +204,11 @@ uint32_t MaterialGL::buildProgram(uint32_t vertex, uint32_t fragment) {
         glUseProgram(result);
         uint8_t t = 0;
         for(auto &it : m_Textures) {
-            if(it.binding > -1) {
-                glUniform1i(it.binding, t);
-            }
-            t++;
-        }
-
-        for(auto &it : m_Uniforms) {
             int32_t location = glGetUniformLocation(result, it.name.c_str());
             if(location > -1) {
-                switch(it.value.type()) {
-                    case MetaType::VECTOR4: {
-                        glUniform4fv(location, 1, it.value.toVector4().v);
-                    } break;
-                    default: {
-                        glUniform1f(location, it.value.toFloat());
-                    } break;
-                }
+                glUniform1i(location, t);
             }
+            t++;
         }
     }
 
@@ -275,33 +264,38 @@ MaterialInstance *MaterialGL::createInstance(SurfaceType type) {
     return result;
 }
 
-MaterialInstanceGL::MaterialInstanceGL(Material *material) :
-    MaterialInstance(material) {
-
+uint32_t MaterialGL::uniformSize() const {
+    return m_uniformSize;
 }
 
-#include <timer.h>
+MaterialInstanceGL::MaterialInstanceGL(Material *material) :
+    MaterialInstance(material),
+    m_instanceUbo(0),
+    m_uniformBuffer(nullptr),
+    m_uniformDirty(true) {
 
-bool MaterialInstanceGL::bind(CommandBufferGL *buffer, const VertexBufferObject &vertex, const FragmentBufferObject &fragment, uint32_t layer) {
-    MaterialGL *material = static_cast<MaterialGL *>(m_pMaterial);
+    MaterialGL *m = static_cast<MaterialGL *>(m_material);
+    uint32_t size = m->uniformSize();
+    if(size) {
+        m_uniformBuffer = new uint8_t[size];
+    }
+}
+
+MaterialInstanceGL::~MaterialInstanceGL() {
+    m_instanceUbo = 0;
+    delete []m_uniformBuffer;
+}
+
+bool MaterialInstanceGL::bind(CommandBufferGL *buffer, uint32_t layer) {
+    MaterialGL *material = static_cast<MaterialGL *>(m_material);
     uint32_t program = material->bind(layer, surfaceType());
     if(program) {
         glUseProgram(program);
 
-        // put uniforms
-
-        int32_t location;
-
-        glUniformMatrix4fv(VIEW_UNIFORM, 1, GL_FALSE, vertex.m_View.mat);
-        glUniformMatrix4fv(PROJ_UNIFORM, 1, GL_FALSE, vertex.m_Projection.mat);
-
-        glUniform1f   (TIMER_BIND, Timer::time());
-        glUniform1f   (CLIP_BIND,  0.99f);
-        glUniform4fv  (COLOR_BIND, 1, fragment.m_Color.v);
-
-        // Push uniform values to shader
+        // Push global uniform values to shader
+        /// \todo Must be removed in future. After the Light structure will be removed from shader
         for(const auto &it : buffer->params()) {
-            location = glGetUniformLocation(program, it.first.c_str());
+            int32_t location = glGetUniformLocation(program, it.first.c_str());
             if(location > -1) {
                 const Variant &data = it.second;
                 switch(data.type()) {
@@ -314,20 +308,23 @@ bool MaterialInstanceGL::bind(CommandBufferGL *buffer, const VertexBufferObject 
             }
         }
 
-        for(const auto &it : params()) {
-            location = glGetUniformLocation(program, it.first.c_str());
-            if(location > -1) {
-                const MaterialInstance::Info &data = it.second;
-                switch(data.type) {
-                    case MetaType::INTEGER: glUniform1iv      (location, data.count, static_cast<const int32_t *>(data.ptr)); break;
-                    case MetaType::FLOAT:   glUniform1fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                    case MetaType::VECTOR2: glUniform2fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                    case MetaType::VECTOR3: glUniform3fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                    case MetaType::VECTOR4: glUniform4fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                    case MetaType::MATRIX4: glUniformMatrix4fv(location, data.count, GL_FALSE, static_cast<const float *>(data.ptr)); break;
-                    default: break;
-                }
+        uint32_t size = material->uniformSize();
+        if(size) {
+            if(m_instanceUbo == 0) {
+                glGenBuffers(1, &m_instanceUbo);
+                glBindBuffer(GL_UNIFORM_BUFFER, m_instanceUbo);
+                glBufferData(GL_UNIFORM_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
             }
+
+            if(m_uniformDirty) {
+                glBindBuffer(GL_UNIFORM_BUFFER, m_instanceUbo);
+                glBufferSubData(GL_UNIFORM_BUFFER, 0, size, m_uniformBuffer);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                m_uniformDirty = false;
+            }
+
+            glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BIND, m_instanceUbo);
         }
 
         uint8_t i = 0;
@@ -360,4 +357,41 @@ bool MaterialInstanceGL::bind(CommandBufferGL *buffer, const VertexBufferObject 
     }
 
     return false;
+}
+
+void MaterialInstanceGL::setInteger(const char *name, int32_t *value, int32_t count) {
+    setValue(name, value);
+}
+
+void MaterialInstanceGL::setFloat(const char *name, float *value, int32_t count) {
+    setValue(name, value);
+}
+
+void MaterialInstanceGL::setVector2(const char *name, Vector2 *value, int32_t count) {
+    setValue(name, value);
+}
+
+void MaterialInstanceGL::setVector3(const char *name, Vector3 *value, int32_t count) {
+    setValue(name, value);
+}
+
+void MaterialInstanceGL::setVector4(const char *name, Vector4 *value, int32_t count) {
+    setValue(name, value);
+}
+
+void MaterialInstanceGL::setMatrix4(const char *name, Matrix4 *value, int32_t count) {
+    setValue(name, value);
+}
+
+void MaterialInstanceGL::setValue(const char *name, void *value) {
+    MaterialGL *material = static_cast<MaterialGL *>(m_material);
+    for(auto &it : material->m_Uniforms) {
+        if(it.name == name) {
+            if(m_uniformBuffer) {
+                memcpy(&m_uniformBuffer[0] + it.offset, value, it.size);
+                m_uniformDirty = true;
+            }
+            break;
+        }
+    }
 }

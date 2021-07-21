@@ -4,12 +4,6 @@
 
 #include "Common.vert"
 
-layout(binding = 1) uniform Fragment {
-    vec4 color;
-    float clip;
-    float time;
-} f;
-
 layout(location = 0) in vec4 _vertex;
 layout(location = 1) in vec2 _uv0;
 layout(location = 2) in vec2 _uv1;
@@ -29,19 +23,19 @@ layout(location = 3) out vec4 gbuffer4;
 
 void simpleMode(Params params) {
     float alpha = getOpacity ( params );
-    if(f.clip >= alpha) {
+    if(g.clip >= alpha) {
         discard;
     }
-    gbuffer1 = f.color;
+    gbuffer1 = l.color;
 }
 
 void passMode(Params params) {
-    vec3 albd   = getDiffuse ( params ) * f.color.xyz;
-    vec3 emit   = getEmissive( params ) * f.color.xyz;
-    float alpha = getOpacity ( params ) * f.color.w;
+    vec3 albd   = getDiffuse ( params ) * l.color.xyz;
+    vec3 emit   = getEmissive( params ) * l.color.xyz;
+    float alpha = getOpacity ( params ) * l.color.w;
     float spec  = 1.0;
 #ifdef BLEND_OPAQUE
-    if(f.clip >= alpha) {
+    if(g.clip >= alpha) {
         discard;
     }
     vec3 norm   = vec3(1.0);
@@ -50,7 +44,6 @@ void passMode(Params params) {
     #ifdef MODEL_LIT
     model  = 0.34;
     norm   = params.normal * 0.5 + 0.5;
-    emit   = emit + albd * light.shadows.x;
     matv.x = max(0.01, getRoughness( params ));
     #endif
     gbuffer1 = vec4( norm, model );
@@ -63,7 +56,7 @@ void passMode(Params params) {
 }
 
 void lightMode(Params params) {
-    gbuffer1    = vec4( getEmissive( params ), 1.0 );
+    gbuffer1 = vec4( getEmissive( params ), 1.0 );
 }
 
 void main(void) {

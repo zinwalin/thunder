@@ -25,6 +25,7 @@
 #include "postprocess/bloom.h"
 
 #include "log.h"
+#include "timer.h"
 
 #include "commandbuffer.h"
 
@@ -66,7 +67,7 @@ Pipeline::Pipeline() :
 
     int32_t pageWidth, pageHeight;
     RenderSystem::atlasPageSize(pageWidth, pageHeight);
-    m_Buffer->setGlobalValue("light.map", Vector4(1.0f / pageWidth, 1.0f / pageHeight, pageWidth, pageHeight));
+    m_Buffer->setGlobalValue("light.pageSize", Vector4(1.0f / pageWidth, 1.0f / pageHeight, pageWidth, pageHeight));
 
     {
         Texture *depth = Engine::objectCreate<Texture>();

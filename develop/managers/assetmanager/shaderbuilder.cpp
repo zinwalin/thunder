@@ -13,6 +13,7 @@
 #include <QVector2D>
 #include <QVector3D>
 #include <QVector4D>
+#include <QMatrix4x4>
 
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -199,13 +200,11 @@ Actor *ShaderBuilder::createActor(const QString &guid) const {
 uint8_t ShaderBuilder::convertFile(AssetConverterSettings *settings) {
     load(settings->source());
     if(build()) {
-        if(settings->currentVersion() != settings->version()) {
-            save(settings->source());
-        }
+        save(settings->source());
 
         QFile file(settings->absoluteDestination());
         if(file.open(QIODevice::WriteOnly)) {
-            ByteArray data = Bson::save( object() );
+            ByteArray data = Bson::save(object());
             file.write(reinterpret_cast<const char *>(&data[0]), data.size());
             file.close();
             settings->setCurrentVersion(settings->version());
@@ -259,6 +258,7 @@ void ShaderBuilder::load(const QString &path) {
     setDepthWrite(m_Data.contains(DEPTHWRITE) ? m_Data[DEPTHWRITE].toBool() : true);
     setRawPath(m_Data[RAW].toString());
     loadTextures(m_Data[TEXTURES].toMap());
+    loadUniforms(m_Data[UNIFORMS].toList());
     blockSignals(false);
 
     emit schemeUpdated();
@@ -274,6 +274,7 @@ void ShaderBuilder::save(const QString &path) {
     m_Data[VIEW] = isViewSpace();
     m_Data[RAW] = rawPath().filePath();
     m_Data[TEXTURES] = saveTextures();
+    m_Data[UNIFORMS] = saveUniforms();
 
     AbstractSchemeModel::save(path);
 }
@@ -363,6 +364,78 @@ QVariantMap ShaderBuilder::saveTextures() const {
     return result;
 }
 
+void ShaderBuilder::loadUniforms(const QVariantList &data) {
+    m_Uniforms.clear();
+    for(auto &it : data) {
+        QVariantList value = it.toList();
+        auto field = value.begin();
+        QString name = field->toString();
+        ++field;
+        uint32_t type = field->toInt();
+        ++field;
+        size_t count = field->toInt();
+        ++field;
+        switch(type) {
+            case QMetaType::Int: {
+                m_Uniforms.push_back({name, type, count, 0});
+            } break;
+            case QMetaType::Float: {
+                m_Uniforms.push_back({name, type, count, 0.0f});
+            } break;
+            case QMetaType::QVector2D: {
+                 m_Uniforms.push_back({name, type, count, QVector2D()});
+            } break;
+            case QMetaType::QVector3D: {
+                m_Uniforms.push_back({name, type, count, QVector3D()});
+            } break;
+            case QMetaType::QVector4D: {
+                m_Uniforms.push_back({name, type, count, QColor()});
+            } break;
+            case QMetaType::QMatrix4x4: {
+                m_Uniforms.push_back({name, type, count, QMatrix4x4()});
+            } break;
+            default: break;
+        }
+    }
+}
+
+QVariantList ShaderBuilder::saveUniforms() const {
+    QVariantList result;
+
+    if(m_RawPath.absoluteFilePath().isEmpty()) {
+        return result;
+    }
+
+    for(auto &it : m_Uniforms) {
+        QVariantList value;
+        value.push_back(it.name);
+        switch(it.type) {
+            case QMetaType::Int: {
+                value.push_back((int)QMetaType::Int);
+            } break;
+            case QMetaType::Float: {
+                value.push_back((int)QMetaType::Float);
+            } break;
+            case QMetaType::QVector2D: {
+                value.push_back((int)QMetaType::QVector2D);
+            } break;
+            case QMetaType::QVector3D: {
+                value.push_back((int)QMetaType::QVector3D);
+            } break;
+            case QMetaType::QVector4D: {
+                value.push_back((int)QMetaType::QVector4D);
+            } break;
+            case QMetaType::QMatrix4x4: {
+                value.push_back((int)QMetaType::QMatrix4x4);
+            } break;
+            default: break;
+        }
+        value.push_back(it.count);
+        result.push_back(value);
+    }
+    return result;
+}
+
 bool ShaderBuilder::build() {
     cleanup();
 
@@ -372,6 +445,25 @@ bool ShaderBuilder::build() {
 
     if(m_RawPath.absoluteFilePath().isEmpty()) {
         uint32_t binding = UNIFORM;
+
+        if(!m_Uniforms.empty()) {
+            m_Shader += QString("layout(binding = %1) uniform Uniforms {\n").arg(binding);
+
+            // Make uniforms
+            for(const auto &it : m_Uniforms) {
+                switch(it.type) {
+                    case QMetaType::Float:     m_Shader += "\tfloat " + it.name + ";\n"; break;
+                    case QMetaType::QVector2D: m_Shader += "\tvec2 " + it.name + ";\n"; break;
+                    case QMetaType::QVector3D: m_Shader += "\tvec3 " + it.name + ";\n"; break;
+                    case QMetaType::QVector4D: m_Shader += "\tvec4 " + it.name + ";\n"; break;
+                    default: break;
+                }
+            }
+
+            m_Shader += "} uni;\n\n";
+
+            binding++;
+        }
 
         // Textures
         uint16_t i = 0;
@@ -387,24 +479,6 @@ bool ShaderBuilder::build() {
 
             i++;
             binding++;
-        }
-
-        m_Shader.append("\n");
-
-        if(!m_Uniforms.empty()) {
-            m_Shader += QString("layout(binding = %1) uniform Uniforms {\n").arg(binding);
-        }
-        // Make uniforms
-        for(const auto &it : m_Uniforms) {
-            switch(it.second.first) {
-                case QMetaType::QVector2D:  m_Shader += "\tvec2 " + it.first + ";\n"; break;
-                case QMetaType::QVector3D:  m_Shader += "\tvec3 " + it.first + ";\n"; break;
-                case QMetaType::QVector4D:  m_Shader += "\tvec4 " + it.first + ";\n"; break;
-                default:  m_Shader += "\tfloat " + it.first + ";\n"; break;
-            }
-        }
-        if(!m_Uniforms.empty()) {
-            m_Shader += "} uni;\n\n";
         }
     }
     m_Shader.append(str);
@@ -451,7 +525,7 @@ Variant ShaderBuilder::data(bool editor) const {
 
     VariantList textures;
     uint16_t i = 0;
-    uint32_t binding = UNIFORM;
+    uint32_t binding = (m_Uniforms.isEmpty()) ? UNIFORM : UNIFORM + 1;
     for(auto &it : m_Textures) {
         VariantList data;
 
@@ -480,20 +554,39 @@ Variant ShaderBuilder::data(bool editor) const {
 
         uint32_t size = 0;
         Variant value;
-        switch(it.second.first) {
+        switch(it.type) {
+            case QMetaType::Int: {
+                value = Variant(it.value.toInt());
+                size = sizeof(int);
+            } break;
+            case QMetaType::Float: {
+                value = Variant(it.value.toFloat());
+                size = sizeof(float);
+            } break;
+            case QMetaType::QVector2D: {
+                QVector2D v = it.value.value<QVector2D>();
+                value = Variant(Vector2(v.x(), v.y()));
+                size = sizeof(Vector2);
+            } break;
+            case QMetaType::QVector3D: {
+                QVector3D v = it.value.value<QVector3D>();
+                value = Variant(Vector3(v.x(), v.y(), v.z()));
+                size = sizeof(Vector3);
+            } break;
             case QMetaType::QVector4D: {
-                QColor c = it.second.second.value<QColor>();
+                QColor c = it.value.value<QColor>();
                 value = Variant(Vector4(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
                 size = sizeof(Vector4);
             } break;
-            default: {
-                value = Variant(it.second.second.toFloat());
-                size = sizeof(float);
+            case QMetaType::QMatrix4x4: {
+                value = Variant(Matrix4());
+                size = sizeof(Matrix4);
             } break;
+            default: break;
         }
-        data.push_back(value); // value
-        data.push_back(size); // size
-        data.push_back(it.first.toStdString()); // name
+        data.push_back(value);
+        data.push_back(uint32_t(size * it.count));
+        data.push_back("uni." + it.name.toStdString());
 
         uniforms.push_back(data);
     }
@@ -619,7 +712,14 @@ int ShaderBuilder::setTexture(const QString &path, Vector4 &sub, uint8_t flags) 
 }
 
 void ShaderBuilder::addUniform(const QString &name, uint8_t type, const QVariant &value) {
-    m_Uniforms[name] = UniformPair(type, value);
+    for(auto &it : m_Uniforms) {
+        if(it.name == name) {
+            it.type = type;
+            it.value = value;
+            return;
+        }
+    }
+    m_Uniforms.push_back({name, type, 1, value});
 }
 
 void ShaderBuilder::addParam(const QString &param) {
@@ -685,11 +785,11 @@ void ShaderBuilder::buildRoot(QString &result) {
 }
 
 void ShaderBuilder::cleanup() {
-    if(m_RawPath == FilePath()) {
+    if(m_RawPath.absoluteFilePath().isEmpty()) {
         m_Textures.clear();
+        m_Uniforms.clear();
     }
     m_Params.clear();
-    m_Uniforms.clear();
     m_Pragmas.clear();
     m_Shader.clear();
 }

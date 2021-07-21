@@ -102,6 +102,7 @@ void Bloom::resize(int32_t width, int32_t height) {
 
 void Bloom::setSettings(const PostProcessSettings &settings) {
     m_threshold = settings.readValue(BLOOM_THRESHOLD).toFloat();
+    m_material->setFloat("threshold", &m_threshold);
 }
 
 const char *Bloom::name() const {

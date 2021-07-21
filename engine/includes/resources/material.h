@@ -87,7 +87,9 @@ public:
 
         Variant value;
 
-        int32_t size;
+        size_t size;
+
+        size_t offset;
     };
 
     typedef list<TextureItem> TextureList;
@@ -149,25 +151,12 @@ protected:
 
 class NEXT_LIBRARY_EXPORT MaterialInstance {
 public:
-    struct Info {
-        uint32_t type;
-
-        int32_t count;
-
-        void *ptr;
-    };
-
-    typedef unordered_map<string, Info> InfoMap;
-
-public:
     explicit MaterialInstance(Material *material);
     virtual ~MaterialInstance();
 
     Material *material() const;
 
     Texture *texture(const char *name);
-
-    InfoMap &params();
 
     virtual void setInteger(const char *name, int32_t *value, int32_t count = 1);
 
@@ -178,7 +167,7 @@ public:
 
     virtual void setMatrix4(const char *name, Matrix4 *value, int32_t count = 1);
 
-    virtual void setTexture(const char *name, Texture *value, int32_t count = 1);
+    virtual void setTexture(const char *name, Texture *value);
 
     uint16_t surfaceType() const;
     void setSurfaceType(uint16_t type);
@@ -186,11 +175,11 @@ public:
 protected:
     friend class Material;
 
-    Material *m_pMaterial;
+    Material *m_material;
 
-    InfoMap m_Info;
+    uint16_t m_surfaceType;
 
-    uint16_t m_SurfaceType;
+    map<string, Texture *> m_textureOverride;
 };
 
 #endif // SHADER

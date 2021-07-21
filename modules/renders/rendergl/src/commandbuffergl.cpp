@@ -6,17 +6,49 @@
 #include "resources/meshgl.h"
 #include "resources/texturegl.h"
 #include "resources/rendertargetgl.h"
+#include "resources/pipeline.h"
 
 #include <log.h>
 #include <timer.h>
 
-CommandBufferGL::CommandBufferGL() {
+CommandBufferGL::CommandBufferGL() :
+        m_globalUbo(0),
+        m_localUbo(0) {
     PROFILE_FUNCTION();
 
 }
 
 CommandBufferGL::~CommandBufferGL() {
 
+}
+
+void CommandBufferGL::begin() {
+    PROFILE_FUNCTION();
+
+    if(m_globalUbo == 0) {
+        glGenBuffers(1, &m_globalUbo);
+        glBindBuffer(GL_UNIFORM_BUFFER, m_globalUbo);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(GlobalBufferObject), nullptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
+    glBindBufferBase(GL_UNIFORM_BUFFER, GLOBAL_BIND, m_globalUbo);
+
+    m_global.time = Timer::deltaTime();
+    m_global.clip = 0.99f;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_globalUbo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(GlobalBufferObject), &m_globalUbo);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    if(m_localUbo == 0) {
+        glGenBuffers(1, &m_localUbo);
+        glBindBuffer(GL_UNIFORM_BUFFER, m_localUbo);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(LocalBufferObject), nullptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+        glBindBufferBase(GL_UNIFORM_BUFFER, LOCAL_BIND, m_localUbo);
+    }
 }
 
 void CommandBufferGL::clearRenderTarget(bool clearColor, const Vector4 &color, bool clearDepth, float depth) {
@@ -51,11 +83,14 @@ void CommandBufferGL::drawMesh(const Matrix4 &model, Mesh *mesh, uint32_t sub, u
             return;
         }
 
+        m_local.model = model;
+
+        glBindBuffer(GL_UNIFORM_BUFFER, m_localUbo);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(LocalBufferObject), &m_local);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
         MaterialInstanceGL *instance = static_cast<MaterialInstanceGL *>(material);
-
-        m_vertex.m_Model = model;
-
-        if(instance->bind(this, m_vertex, m_fragment, layer)) {
+        if(instance->bind(this, layer)) {
             m->bindVao(this, lod);
 
             Mesh::TriangleTopology topology = static_cast<Mesh::TriangleTopology>(mesh->topology());
@@ -93,11 +128,14 @@ void CommandBufferGL::drawMeshInstanced(const Matrix4 *models, uint32_t count, M
             return;
         }
 
+        m_local.model.identity();
+
+        glBindBuffer(GL_UNIFORM_BUFFER, m_localUbo);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(LocalBufferObject), &m_local);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
         MaterialInstanceGL *instance = static_cast<MaterialInstanceGL *>(material);
-
-        m_vertex.m_Model = Matrix4();
-
-        if(instance->bind(this, m_vertex, m_fragment, layer)) {
+        if(instance->bind(this, layer)) {
             glBindBuffer(GL_ARRAY_BUFFER, m->instance());
             glBufferData(GL_ARRAY_BUFFER, count * sizeof(Matrix4), models, GL_DYNAMIC_DRAW);
 
@@ -139,27 +177,66 @@ Texture *CommandBufferGL::texture(const char *name) const {
 }
 
 void CommandBufferGL::setColor(const Vector4 &color) {
-    m_fragment.m_Color = color;
+    m_local.color = color;
 }
 
 void CommandBufferGL::resetViewProjection() {
-    m_vertex.m_View = m_SaveView;
-    m_vertex.m_Projection = m_SaveProjection;
+    PROFILE_FUNCTION();
+
+    m_global.view = m_SaveView;
+    m_global.projection = m_SaveProjection;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_globalUbo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(GlobalBufferObject), &m_global);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 void CommandBufferGL::setViewProjection(const Matrix4 &view, const Matrix4 &projection) {
-    m_SaveView = m_vertex.m_View;
-    m_SaveProjection = m_vertex.m_Projection;
+    PROFILE_FUNCTION();
 
-    m_vertex.m_View = view;
-    m_vertex.m_Projection = projection;
+    m_SaveView = m_global.view;
+    m_SaveProjection = m_global.projection;
+
+    m_global.view = view;
+    m_global.projection = projection;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_globalUbo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(GlobalBufferObject), &m_global);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 void CommandBufferGL::setGlobalValue(const char *name, const Variant &value) {
-    m_Uniforms[name] = value;
+    PROFILE_FUNCTION();
+
+    static unordered_map<string, pair<size_t, size_t>> offsets = {
+        {"camera.position",      make_pair(offsetof(GlobalBufferObject, cameraPosition), sizeof(GlobalBufferObject::cameraPosition))},
+        {"camera.target",        make_pair(offsetof(GlobalBufferObject, cameraTarget), sizeof(GlobalBufferObject::cameraTarget))},
+        {"camera.view",          make_pair(offsetof(GlobalBufferObject, cameraView), sizeof(GlobalBufferObject::cameraView))},
+        {"camera.projectionInv", make_pair(offsetof(GlobalBufferObject, cameraProjectionInv), sizeof(GlobalBufferObject::cameraProjectionInv))},
+        {"camera.projection",    make_pair(offsetof(GlobalBufferObject, cameraProjection), sizeof(GlobalBufferObject::cameraProjection))},
+        {"camera.screenToWorld", make_pair(offsetof(GlobalBufferObject, cameraScreenToWorld), sizeof(GlobalBufferObject::cameraScreenToWorld))},
+        {"camera.worldToScreen", make_pair(offsetof(GlobalBufferObject, cameraWorldToScreen), sizeof(GlobalBufferObject::cameraWorldToScreen))},
+        {"camera.screen",        make_pair(offsetof(GlobalBufferObject, cameraScreen), sizeof(GlobalBufferObject::cameraScreen))},
+        {"light.pageSize",       make_pair(offsetof(GlobalBufferObject, lightPageSize), sizeof(GlobalBufferObject::lightPageSize))},
+        {"light.ambient",        make_pair(offsetof(GlobalBufferObject, lightAmbient), sizeof(GlobalBufferObject::lightAmbient))},
+    };
+
+    auto it = offsets.find(name);
+    if(it != offsets.end()) {
+        void *src = value.data();
+        memcpy((uint8_t *)&m_global + it->second.first, value.data(), it->second.second);
+
+        glBindBuffer(GL_UNIFORM_BUFFER, m_globalUbo);
+        glBufferSubData(GL_UNIFORM_BUFFER, it->second.first, it->second.second, src);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    } else {
+        m_Uniforms[name] = value;
+    }
 }
 
 void CommandBufferGL::setGlobalTexture(const char *name, Texture *texture) {
+    PROFILE_FUNCTION();
+
     for(auto &it : m_Textures) {
         if(it.name == name) {
             it.texture = texture;
@@ -193,9 +270,9 @@ void CommandBufferGL::finish() {
 }
 
 Matrix4 CommandBufferGL::projection() const {
-    return m_vertex.m_Projection;
+    return m_global.projection;
 }
 
 Matrix4 CommandBufferGL::view() const {
-    return m_vertex.m_View;
+    return m_global.view;
 }
