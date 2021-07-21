@@ -8,6 +8,28 @@
 
 #include <engine.h>
 
+class CommandBufferGL;
+
+struct VertexBufferObject {
+    Matrix4 m_Model;
+    Matrix4 m_View;
+    Matrix4 m_Projection;
+};
+
+struct FragmentBufferObject {
+    Vector4 m_Color;
+    float m_Clip;
+    float m_Time;
+};
+
+class MaterialInstanceGL : public MaterialInstance {
+public:
+    MaterialInstanceGL(Material *material);
+
+    bool bind(CommandBufferGL *buffer, const VertexBufferObject &vertex, const FragmentBufferObject &fragment, uint32_t layer);
+
+};
+
 class MaterialGL : public Material {
     A_OVERRIDE(MaterialGL, Material, Resources)
 
@@ -35,7 +57,7 @@ public:
 
     uint32_t getProgram(uint16_t type);
 
-    TextureMap textures() const { return m_Textures; }
+    TextureList textures() const { return m_Textures; }
 
 protected:
     uint32_t buildShader(uint16_t type, const string &src = string());

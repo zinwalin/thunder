@@ -10,14 +10,6 @@
 #include <log.h>
 #include <timer.h>
 
-#define MODEL_UNIFORM   0
-#define VIEW_UNIFORM    1
-#define PROJ_UNIFORM    2
-
-#define COLOR_BIND  3
-#define CLIP_BIND   4
-#define TIMER_BIND  5
-
 CommandBufferGL::CommandBufferGL() {
     PROFILE_FUNCTION();
 
@@ -43,72 +35,8 @@ void CommandBufferGL::clearRenderTarget(bool clearColor, const Vector4 &color, b
     glClear(flags);
 }
 
-void CommandBufferGL::putUniforms(uint32_t program, MaterialInstance *instance) {
-    int32_t location;
-
-    glUniformMatrix4fv(VIEW_UNIFORM, 1, GL_FALSE, m_View.mat);
-    glUniformMatrix4fv(PROJ_UNIFORM, 1, GL_FALSE, m_Projection.mat);
-
-    glUniform1f   (TIMER_BIND, Timer::time());
-    glUniform1f   (CLIP_BIND,  0.99f);
-    glUniform4fv  (COLOR_BIND, 1, m_Color.v);
-
-    // Push uniform values to shader
-    for(const auto &it : m_Uniforms) {
-        location = glGetUniformLocation(program, it.first.c_str());
-        if(location > -1) {
-            const Variant &data = it.second;
-            switch(data.type()) {
-                case MetaType::VECTOR2: glUniform2fv      (location, 1, data.toVector2().v); break;
-                case MetaType::VECTOR3: glUniform3fv      (location, 1, data.toVector3().v); break;
-                case MetaType::VECTOR4: glUniform4fv      (location, 1, data.toVector4().v); break;
-                case MetaType::MATRIX4: glUniformMatrix4fv(location, 1, GL_FALSE, data.toMatrix4().mat); break;
-                default:                glUniform1f       (location, data.toFloat()); break;
-            }
-        }
-    }
-
-    for(const auto &it : instance->params()) {
-        location = glGetUniformLocation(program, it.first.c_str());
-        if(location > -1) {
-            const MaterialInstance::Info &data = it.second;
-            switch(data.type) {
-                case MetaType::INTEGER: glUniform1iv      (location, data.count, static_cast<const int32_t *>(data.ptr)); break;
-                case MetaType::FLOAT:   glUniform1fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                case MetaType::VECTOR2: glUniform2fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                case MetaType::VECTOR3: glUniform3fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                case MetaType::VECTOR4: glUniform4fv      (location, data.count, static_cast<const float *>(data.ptr)); break;
-                case MetaType::MATRIX4: glUniformMatrix4fv(location, data.count, GL_FALSE, static_cast<const float *>(data.ptr)); break;
-                default: break;
-            }
-        }
-    }
-
-    MaterialGL *mat = static_cast<MaterialGL *>(instance->material());
-
-    uint8_t i = 0;
-    for(auto &it : mat->textures()) {
-        Texture *tex = it.second;
-        Texture *tmp = instance->texture(it.first.c_str());
-        if(tmp) {
-            tex = tmp;
-        } else {
-            tmp = texture(it.first.c_str());
-            if(tmp) {
-                tex = tmp;
-            }
-        }
-
-        if(tex) {
-            glActiveTexture(GL_TEXTURE0 + i);
-            uint32_t texture = GL_TEXTURE_2D;
-            if(tex->isCubemap()) {
-                texture = GL_TEXTURE_CUBE_MAP;
-            }
-            glBindTexture(texture, static_cast<TextureGL *>(tex)->nativeHandle());
-        }
-        i++;
-    }
+const VariantMap &CommandBufferGL::params() const {
+    return m_Uniforms;
 }
 
 void CommandBufferGL::drawMesh(const Matrix4 &model, Mesh *mesh, uint32_t sub, uint32_t layer, MaterialInstance *material) {
@@ -123,15 +51,11 @@ void CommandBufferGL::drawMesh(const Matrix4 &model, Mesh *mesh, uint32_t sub, u
             return;
         }
 
-        MaterialGL *mat = static_cast<MaterialGL *>(material->material());
-        uint32_t program = mat->bind(layer, material->surfaceType());
-        if(program) {
-            glUseProgram(program);
+        MaterialInstanceGL *instance = static_cast<MaterialInstanceGL *>(material);
 
-            glUniformMatrix4fv(MODEL_UNIFORM, 1, GL_FALSE, model.mat);
+        m_vertex.m_Model = model;
 
-            putUniforms(program, material);
-
+        if(instance->bind(this, m_vertex, m_fragment, layer)) {
             m->bindVao(this, lod);
 
             Mesh::TriangleTopology topology = static_cast<Mesh::TriangleTopology>(mesh->topology());
@@ -169,18 +93,13 @@ void CommandBufferGL::drawMeshInstanced(const Matrix4 *models, uint32_t count, M
             return;
         }
 
-        MaterialGL *mat = static_cast<MaterialGL *>(material->material());
-        uint32_t program = mat->bind(layer, material->surfaceType());
+        MaterialInstanceGL *instance = static_cast<MaterialInstanceGL *>(material);
 
-        if(program) {
-            glUseProgram(program);
+        m_vertex.m_Model = Matrix4();
 
-            glUniformMatrix4fv(MODEL_UNIFORM, 1, GL_FALSE, Matrix4().mat);
-
+        if(instance->bind(this, m_vertex, m_fragment, layer)) {
             glBindBuffer(GL_ARRAY_BUFFER, m->instance());
             glBufferData(GL_ARRAY_BUFFER, count * sizeof(Matrix4), models, GL_DYNAMIC_DRAW);
-
-            putUniforms(program, material);
 
             m->bindVao(this, lod);
 
@@ -211,36 +130,48 @@ void CommandBufferGL::setRenderTarget(RenderTarget *target, uint32_t level) {
 }
 
 Texture *CommandBufferGL::texture(const char *name) const {
-    auto it = m_Textures.find(name);
-    if(it != m_Textures.end()) {
-        return (*it).second;
+    for(auto &it : m_Textures) {
+        if(it.name == name) {
+            return it.texture;
+        }
     }
     return nullptr;
 }
 
 void CommandBufferGL::setColor(const Vector4 &color) {
-    m_Color = color;
+    m_fragment.m_Color = color;
 }
 
 void CommandBufferGL::resetViewProjection() {
-    m_View = m_SaveView;
-    m_Projection = m_SaveProjection;
+    m_vertex.m_View = m_SaveView;
+    m_vertex.m_Projection = m_SaveProjection;
 }
 
 void CommandBufferGL::setViewProjection(const Matrix4 &view, const Matrix4 &projection) {
-    m_SaveView = m_View;
-    m_SaveProjection= m_Projection;
+    m_SaveView = m_vertex.m_View;
+    m_SaveProjection = m_vertex.m_Projection;
 
-    m_View = view;
-    m_Projection = projection;
+    m_vertex.m_View = view;
+    m_vertex.m_Projection = projection;
 }
 
 void CommandBufferGL::setGlobalValue(const char *name, const Variant &value) {
     m_Uniforms[name] = value;
 }
 
-void CommandBufferGL::setGlobalTexture(const char *name, Texture *value) {
-    m_Textures[name] = value;
+void CommandBufferGL::setGlobalTexture(const char *name, Texture *texture) {
+    for(auto &it : m_Textures) {
+        if(it.name == name) {
+            it.texture = texture;
+            return;
+        }
+    }
+
+    Material::TextureItem item;
+    item.name = name;
+    item.texture = texture;
+    item.binding = -1;
+    m_Textures.push_back(item);
 }
 
 void CommandBufferGL::setViewport(int32_t x, int32_t y, int32_t width, int32_t height) {
@@ -255,4 +186,16 @@ void CommandBufferGL::enableScissor(int32_t x, int32_t y, int32_t width, int32_t
 
 void CommandBufferGL::disableScissor() {
     glDisable(GL_SCISSOR_TEST);
+}
+
+void CommandBufferGL::finish() {
+    glFinish();
+}
+
+Matrix4 CommandBufferGL::projection() const {
+    return m_vertex.m_Projection;
+}
+
+Matrix4 CommandBufferGL::view() const {
+    return m_vertex.m_View;
 }

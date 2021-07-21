@@ -3,9 +3,6 @@
 #include "Common.vert"
 #include "BRDF.frag"
 
-layout(location = 0) uniform mat4 t_model;
-layout(location = 1) uniform mat4 t_view;
-
 layout(location = 50) uniform sampler2D normalsMap;
 layout(location = 51) uniform sampler2D diffuseMap;
 layout(location = 52) uniform sampler2D paramsMap;

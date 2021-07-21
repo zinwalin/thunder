@@ -4,8 +4,6 @@
 
 #include "agl.h"
 
-#define DATA    "Data"
-
 TextureGL::TextureGL() :
         m_ID(0) {
 

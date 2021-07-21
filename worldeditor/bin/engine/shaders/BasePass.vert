@@ -4,15 +4,17 @@
 
 #include "Common.vert"
 
-layout(location = 0) uniform mat4 t_model;
-layout(location = 1) uniform mat4 t_view;
-layout(location = 2) uniform mat4 t_projection;
+layout(binding = 0) uniform Transform {
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+} t;
 
 layout(location = 0) in vec3 vertex;
-layout(location = 1) in vec3 normal;
-layout(location = 2) in vec3 tangent;
-layout(location = 3) in vec4 color;
-layout(location = 4) in vec2 uv0;
+layout(location = 1) in vec2 uv0;
+layout(location = 2) in vec3 normal;
+layout(location = 3) in vec3 tangent;
+layout(location = 4) in vec4 color;
 
 #ifdef INSTANCING
     layout(location = 8) in mat4 instanceMatrix;
@@ -134,33 +136,33 @@ void main(void) {
 #ifdef INSTANCING
     mat4 model  = instanceMatrix;
 #else
-    mat4 model  = t_model;
+    mat4 model  = t.model;
 #endif
-    mat4 mv     = t_view * model;
+    mat4 mv     = t.view * model;
     mat3 rot    = mat3( model );
 
-    vec3 camera = vec3( t_view[0].w,
-                        t_view[1].w,
-                        t_view[2].w );
+    vec3 camera = vec3( t.view[0].w,
+                        t.view[1].w,
+                        t.view[2].w );
 
 #ifdef TYPE_STATIC
     Vertex vert = staticMesh( vertex, tangent, normal, rot );
 
-    _vertex = t_projection * (mv * vec4(vert.v, 1.0));
+    _vertex = t.projection * (mv * vec4(vert.v, 1.0));
     _view = ( model * vec4(vert.v, 1.0) ).xyz - camera;
 #endif
 
 #ifdef TYPE_BILLBOARD
     Vertex vert = billboard( vertex, tangent, normal, particlePosRot, particleSizeDist );
 
-    _vertex = t_projection * (mv * vec4(vert.v, 1.0));
+    _vertex = t.projection * (mv * vec4(vert.v, 1.0));
     _view = ( model * vec4(vert.v, 1.0) ).xyz - camera;
 #endif
 
 #ifdef TYPE_SKINNED
     Vertex vert = skinnedMesh( vertex, tangent, normal, bones, weights );
 
-    _vertex = t_projection * (t_view * vec4(vert.v, 1.0));
+    _vertex = t.projection * (t.view * vec4(vert.v, 1.0));
     _view = vert.v - camera;
 #endif
 

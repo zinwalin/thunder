@@ -243,36 +243,41 @@ private:
 
     typedef QList<TexturePair> TextureList;
 
-    QStringList                 m_Functions;
-
-    /// Shader uniforms
-    UniformMap                  m_Uniforms;
-    /// Shader uniforms
-    TextureList                 m_Textures;
-    /// Shader params
-    QString                     m_Params;
-    /// Shader source code
-    QString                     m_Shader;
-
-    Blend                       m_BlendMode;
-
-    LightModel                  m_LightModel;
-
-    Type                        m_MaterialType;
-
-    bool                        m_DoubleSided;
-
-    bool                        m_DepthTest;
-
-    bool                        m_DepthWrite;
-
-    bool                        m_ViewSpace;
-
     typedef map<string, string> PragmaMap;
 
-    PragmaMap                   m_Pragmas;
+    typedef QMap<QString, Rhi> RhiMap;
 
-    FilePath                    m_RawPath;
+    QStringList m_Functions;
+
+    /// Shader uniforms
+    UniformMap m_Uniforms;
+    /// Shader uniforms
+    TextureList m_Textures;
+    /// Shader params
+    QString m_Params;
+    /// Shader source code
+    QString m_Shader;
+
+    Blend m_BlendMode;
+
+    LightModel m_LightModel;
+
+    Type m_MaterialType;
+
+    bool m_DoubleSided;
+
+    bool m_DepthTest;
+
+    bool m_DepthWrite;
+
+    bool m_ViewSpace;
+
+    PragmaMap m_Pragmas;
+
+    FilePath m_RawPath;
+
+    RhiMap m_rhiMap;
+
 };
 
 Q_DECLARE_METATYPE(ShaderBuilder::LightModel)

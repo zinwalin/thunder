@@ -57,10 +57,11 @@
 #define RAW         "Raw"
 #define VIEW        "View"
 #define TEXTURES    "Textures"
+#define UNIFORMS    "Uniforms"
 
-#define UNIFORM 50
+#define UNIFORM 4
 
-#define FORMAT_VERSION 4
+#define FORMAT_VERSION 5
 
 const regex include("^[ ]*#[ ]*include[ ]+[\"<](.*)[\">][^?]*");
 const regex pragma("^[ ]*#[ ]*pragma[ ]+(.*)[^?]*");
@@ -157,6 +158,13 @@ ShaderBuilder::ShaderBuilder() :
         m_pRootNode->list.push_back(item);
         i++;
     }
+
+    m_rhiMap = {
+        {"RenderGL", OpenGL},
+        {"RenderVK", Vulkan},
+        {"RenderMT", Metal},
+        {"RenderD3D", DirectX},
+    };
 }
 
 ShaderBuilder::~ShaderBuilder() {
@@ -363,8 +371,28 @@ bool ShaderBuilder::build() {
     buildRoot(str);
 
     if(m_RawPath.absoluteFilePath().isEmpty()) {
-        if(!m_Uniforms.empty() || !m_Textures.empty()) {
-            m_Shader = QString("layout(location = %1) uniform struct Uniforms {\n").arg(UNIFORM);
+        uint32_t binding = UNIFORM;
+
+        // Textures
+        uint16_t i = 0;
+        for(auto &it : m_Textures) {
+            QString texture;
+            if(it.second & Cube) {
+                texture += QString("layout(binding = %1) uniform samplerCube ").arg(binding);
+            } else {
+                texture += QString("layout(binding = %1) uniform sampler2D ").arg(binding);
+            }
+            texture += ((it.second & Target) ? it.first : QString("texture%1").arg(i)) + ";\n";
+            m_Shader += texture;
+
+            i++;
+            binding++;
+        }
+
+        m_Shader.append("\n");
+
+        if(!m_Uniforms.empty()) {
+            m_Shader += QString("layout(binding = %1) uniform Uniforms {\n").arg(binding);
         }
         // Make uniforms
         for(const auto &it : m_Uniforms) {
@@ -375,23 +403,8 @@ bool ShaderBuilder::build() {
                 default:  m_Shader += "\tfloat " + it.first + ";\n"; break;
             }
         }
-        m_Shader.append("\n");
-
-        // Textures
-        uint16_t i = 0;
-        for(auto &it : m_Textures) {
-            QString texture;
-            if(it.second & Cube) {
-                texture += "\tsamplerCube ";
-            } else {
-                texture += "\tsampler2D ";
-            }
-            texture += ((it.second & Target) ? it.first : QString("texture%1").arg(i)) + ";\n";
-            m_Shader.append( texture );
-            i++;
-        }
-        if(!m_Uniforms.empty() || !m_Textures.empty()) {
-            m_Shader += "} uni;\n";
+        if(!m_Uniforms.empty()) {
+            m_Shader += "} uni;\n\n";
         }
     }
     m_Shader.append(str);
@@ -436,36 +449,55 @@ Variant ShaderBuilder::data(bool editor) const {
     properties.push_back(isDepthWrite());
     user["Properties"] = properties;
 
-    VariantMap textures;
+    VariantList textures;
     uint16_t i = 0;
+    uint32_t binding = UNIFORM;
     for(auto &it : m_Textures) {
+        VariantList data;
+
         bool target = (it.second & Target);
         QString name;
         if(m_RawPath.absoluteFilePath().isEmpty()) {
-            name = QString("uni.%1").arg((target) ? it.first : QString("texture%1").arg(i));
+            name = (target) ? it.first : QString("texture%1").arg(i);
         } else {
             name = it.first;
         }
-        textures[name.toStdString()] = ((target) ? "" : it.first.toStdString());
-        i++;
-    }
-    user["Textures"] = textures;
 
-    VariantMap uniforms;
+        data.push_back(((target) ? "" : it.first.toStdString())); // path
+        data.push_back(binding); // binding
+        data.push_back(name.toStdString()); // name
+        data.push_back(it.second); // flags
+
+        textures.push_back(data);
+        ++i;
+        ++binding;
+    }
+    user[TEXTURES] = textures;
+
+    VariantList uniforms;
     for(auto &it : m_Uniforms) {
+        VariantList data;
+
+        uint32_t size = 0;
         Variant value;
         switch(it.second.first) {
             case QMetaType::QVector4D: {
                 QColor c = it.second.second.value<QColor>();
                 value = Variant(Vector4(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
+                size = sizeof(Vector4);
             } break;
             default: {
                 value = Variant(it.second.second.toFloat());
+                size = sizeof(float);
             } break;
         }
-        uniforms[string("uni.") + it.first.toStdString()] = value;
+        data.push_back(value); // value
+        data.push_back(size); // size
+        data.push_back(it.first.toStdString()); // name
+
+        uniforms.push_back(data);
     }
-    user["Uniforms"] = uniforms;
+    user[UNIFORMS] = uniforms;
 
     string define;
     switch(m_BlendMode) {
@@ -494,6 +526,9 @@ Variant ShaderBuilder::data(bool editor) const {
     uint32_t version = 430;
     bool es = false;
     Rhi rhi = Rhi::OpenGL;
+    if(qEnvironmentVariableIsSet("RENDER")) {
+        rhi = m_rhiMap.value(qEnvironmentVariable("RENDER"));
+    }
     Platform *platform = ProjectManager::instance()->currentPlatform();
     if(dynamic_cast<AndroidPlatform *>(platform) != nullptr ||
        dynamic_cast<IOSPlatform *>(platform) != nullptr) {
@@ -592,8 +627,8 @@ void ShaderBuilder::addParam(const QString &param) {
 }
 
 void ShaderBuilder::buildRoot(QString &result) {
-    for(const auto it : m_pRootNode->list) {
-        for(auto it : m_Nodes) {
+    for(const auto &it : m_pRootNode->list) {
+        for(auto &it : m_Nodes) {
             ShaderFunction *node = static_cast<ShaderFunction *>(it->ptr);
             if(node && it->ptr != this) {
                 node->reset();

@@ -42,7 +42,7 @@
 #define GBUFFER     "gBuffer"
 #define LIGHPASS    "lightPass"
 
-#define OVERRIDE "uni.texture0"
+#define OVERRIDE "texture0"
 
 bool typeLessThan(PostProcessVolume *left, PostProcessVolume *right) {
     return left->priority() < right->priority();

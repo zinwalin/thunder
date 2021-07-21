@@ -72,8 +72,26 @@ public:
         Oriented  = (1<<3)
     };
 
-    typedef map<string, Texture *> TextureMap;
-    typedef map<string, Variant> UniformMap;
+    struct TextureItem {
+        string name;
+
+        Texture *texture;
+
+        int32_t binding;
+
+        int32_t flags;
+    };
+
+    struct UniformItem {
+        string name;
+
+        Variant value;
+
+        int32_t size;
+    };
+
+    typedef list<TextureItem> TextureList;
+    typedef list<UniformItem> UniformList;
 
 public:
     Material();
@@ -106,6 +124,9 @@ public:
     void loadUserData(const VariantMap &data) override;
 
 protected:
+    void initInstance(MaterialInstance *instance);
+
+protected:
     int m_BlendMode;
 
     int m_LightModel;
@@ -118,9 +139,9 @@ protected:
 
     bool m_DepthWrite;
 
-    TextureMap m_Textures;
+    TextureList m_Textures;
 
-    UniformMap m_Uniforms;
+    UniformList m_Uniforms;
 
     int32_t m_Surfaces;
 
@@ -139,8 +160,8 @@ public:
     typedef unordered_map<string, Info> InfoMap;
 
 public:
-     explicit MaterialInstance(Material *material);
-    ~MaterialInstance();
+    explicit MaterialInstance(Material *material);
+    virtual ~MaterialInstance();
 
     Material *material() const;
 
@@ -148,16 +169,16 @@ public:
 
     InfoMap &params();
 
-    void setInteger(const char *name, int32_t *value, int32_t count = 1);
+    virtual void setInteger(const char *name, int32_t *value, int32_t count = 1);
 
-    void setFloat(const char *name, float *value, int32_t count = 1);
-    void setVector2(const char *name, Vector2 *value, int32_t count = 1);
-    void setVector3(const char *name, Vector3 *value, int32_t count = 1);
-    void setVector4(const char *name, Vector4 *value, int32_t count = 1);
+    virtual void setFloat(const char *name, float *value, int32_t count = 1);
+    virtual void setVector2(const char *name, Vector2 *value, int32_t count = 1);
+    virtual void setVector3(const char *name, Vector3 *value, int32_t count = 1);
+    virtual void setVector4(const char *name, Vector4 *value, int32_t count = 1);
 
-    void setMatrix4(const char *name, Matrix4 *value, int32_t count = 1);
+    virtual void setMatrix4(const char *name, Matrix4 *value, int32_t count = 1);
 
-    void setTexture(const char *name, Texture *value, int32_t count = 1);
+    virtual void setTexture(const char *name, Texture *value, int32_t count = 1);
 
     uint16_t surfaceType() const;
     void setSurfaceType(uint16_t type);

@@ -304,10 +304,11 @@ bool PluginManager::registerSystem(Module *plugin, const char *name) {
                 return false;
             }
         }
+
+        m_Systems[QString::fromStdString(system->name())] = system;
+        m_pEngine->addModule(plugin);
     }
 
-    m_Systems[QString::fromStdString(system->name())] = system;
-    m_pEngine->addModule(plugin);
     return true;
 }
 

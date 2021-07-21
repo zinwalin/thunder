@@ -61,16 +61,15 @@
             "Y": 112
         },
         {
-            "Type": "ParamVector",
+            "Type": "ConstVector4",
             "Values": {
-                "Default_Value": [
+                "Value": [
                     67,
                     255,
                     255,
                     255,
                     255
-                ],
-                "Parameter_Name": "color0"
+                ]
             },
             "X": -624,
             "Y": -16

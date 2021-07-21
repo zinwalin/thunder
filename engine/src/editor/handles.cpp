@@ -13,7 +13,7 @@
 
 #define CONTROL_SIZE 90.0f
 
-#define OVERRIDE "uni.texture0"
+#define OVERRIDE "texture0"
 
 Vector4 Handles::s_Normal = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 Vector4 Handles::s_Grey = Vector4(0.3f, 0.3f, 0.3f, 0.6f);

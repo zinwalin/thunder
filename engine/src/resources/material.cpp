@@ -206,7 +206,18 @@ void Material::setDepthWrite(bool write) {
     Sets a \a texture with a given \a name for the material.
 */
 void Material::setTexture(const string &name, Texture *texture) {
-    m_Textures[name] = texture;
+    for(auto &it : m_Textures) {
+        if(it.name == name) {
+            it.texture = texture;
+            return;
+        }
+    }
+
+    TextureItem item;
+    item.name = name;
+    item.texture = texture;
+    item.binding = -1;
+    m_Textures.push_back(item);
 }
 /*!
     \internal
@@ -234,23 +245,46 @@ void Material::loadUserData(const VariantMap &data) {
         }
     }
     {
+        m_Textures.clear();
         auto it = data.find(TEXTURES);
         if(it != data.end()) {
-            for(auto &t : (*it).second.toMap()) {
-                string path = t.second.toString();
+            for(auto &t : (*it).second.toList()) {
+                VariantList list = t.toList();
+                auto f = list.begin();
+                string path = (*f).toString();
+                TextureItem item;
+                item.texture = nullptr;
                 if(!path.empty()) {
-                    m_Textures[t.first] = Engine::loadResource<Texture>(path);
-                } else {
-                    m_Textures[t.first] = nullptr;
+                    item.texture = Engine::loadResource<Texture>(path);
                 }
+                ++f;
+                item.binding = (*f).toInt();
+                ++f;
+                item.name = (*f).toString();
+                ++f;
+                item.flags = (*f).toInt();
+
+                m_Textures.push_back(item);
+
             }
         }
     }
     {
+        m_Uniforms.clear();
         auto it = data.find(UNIFORMS);
         if(it != data.end()) {
-            for(auto &u : (*it).second.toMap()) {
-                m_Uniforms[u.first] = u.second;
+            for(auto &u : (*it).second.toList()) {
+                VariantList list = u.toList();
+                auto f = list.begin();
+
+                UniformItem item;
+                item.value = (*f); // value
+                ++f;
+                item.size = (*f).toInt(); // size
+                ++f;
+                item.name = (*f).toString(); // name
+
+                m_Uniforms.push_back(item);
             }
         }
     }
@@ -261,14 +295,24 @@ void Material::loadUserData(const VariantMap &data) {
 MaterialInstance *Material::createInstance(SurfaceType type) {
     A_UNUSED(type);
     MaterialInstance *result = new MaterialInstance(this);
-    for(auto &it : m_Uniforms) {
-        MaterialInstance::Info info;
-        info.count = 1;
-        info.ptr = it.second.data();
-        info.type = it.second.type();
 
-        result->m_Info[it.first] = info;
-    }
+    initInstance(result);
 
     return result;
+}
+
+/*!
+    \internal
+*/
+void Material::initInstance(MaterialInstance *instance) {
+    if(instance) {
+        for(auto &it : m_Uniforms) {
+            MaterialInstance::Info info;
+            info.count = 1;
+            info.ptr = it.value.data();
+            info.type = it.value.type();
+
+            instance->m_Info[it.name] = info;
+        }
+    }
 }
