@@ -84,11 +84,7 @@ AmbientOcclusion::AmbientOcclusion() :
         Material *mtl = Engine::loadResource<Material>(".embedded/AmbientOcclusion.mtl");
         if(mtl) {
             m_material = mtl->createInstance();
-            m_material->setVector3("samplesKernel", m_samplesKernel, KERNEL_SIZE);
-
-            m_material->setFloat("radius", &m_radius);
-            m_material->setFloat("bias", &m_bias);
-            m_material->setFloat("power", &m_power);
+            m_material->setVector3("uni.samplesKernel", m_samplesKernel, KERNEL_SIZE);
 
             m_material->setTexture("noiseMap", m_noiseTexture);
         }
@@ -166,9 +162,9 @@ void AmbientOcclusion::setSettings(const PostProcessSettings &settings) {
     m_bias = settings.readValue(AMBIENT_BIAS).toFloat();
     m_power = settings.readValue(AMBIENT_POWER).toFloat();
 
-    m_material->setFloat("radius", &m_radius);
-    m_material->setFloat("bias", &m_bias);
-    m_material->setFloat("power", &m_power);
+    m_material->setFloat("uni.radius", &m_radius);
+    m_material->setFloat("uni.bias", &m_bias);
+    m_material->setFloat("uni.power", &m_power);
 }
 
 uint32_t AmbientOcclusion::layer() const {

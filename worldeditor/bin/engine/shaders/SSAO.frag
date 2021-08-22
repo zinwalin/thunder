@@ -5,10 +5,10 @@
 #include "Common.vert"
 
 layout(binding = UNIFORM) uniform Uniforms {
-    vec3 samplesKernel[MAX_SAMPLE_COUNT];
     float radius;
     float bias;
     float power;
+    vec3 samplesKernel[MAX_SAMPLE_COUNT];
 } uni;
 
 layout(binding = UNIFORM + 1) uniform sampler2D depthMap;

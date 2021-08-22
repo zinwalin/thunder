@@ -15,11 +15,6 @@
     "Type": 1,
     "Uniforms": [
         [
-            "curve",
-            38,
-            32
-        ],
-        [
             "direction",
             82,
             1
@@ -33,6 +28,11 @@
             "steps",
             2,
             1
+        ],
+        [
+            "curve",
+            38,
+            32
         ]
     ],
     "View": true

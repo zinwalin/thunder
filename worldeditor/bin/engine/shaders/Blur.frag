@@ -3,10 +3,10 @@
 #include "Common.vert"
 
 layout(binding = UNIFORM) uniform Uniforms {
-    float curve[32];
     vec2 direction;
     vec2 size;
     int steps;
+    float curve[32];
 } uni;
 
 layout(binding = UNIFORM + 1) uniform sampler2D rgbMap;

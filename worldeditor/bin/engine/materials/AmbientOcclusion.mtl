@@ -17,11 +17,6 @@
     "Type": 1,
     "Uniforms": [
         [
-            "samplesKernel",
-            83,
-            16
-        ],
-        [
             "radius",
             38,
             1
@@ -35,7 +30,13 @@
             "power",
             38,
             1
+        ],
+        [
+            "samplesKernel",
+            83,
+            16
         ]
     ],
     "View": true
 }
+

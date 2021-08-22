@@ -18,11 +18,6 @@ Blur::Blur() :
     Material *material = Engine::loadResource<Material>(".embedded/Blur.mtl");
     if(material) {
         m_pBlurMaterial = material->createInstance();
-        m_pBlurMaterial->setInteger("steps", &m_steps);
-        m_pBlurMaterial->setFloat("curve", m_points, MAX_SAMPLES);
-
-        m_pBlurMaterial->setVector2("size", &m_size);
-        m_pBlurMaterial->setVector2("direction", &m_direction);
     }
 
     m_tempTexture = Engine::objectCreate<Texture>();
@@ -63,6 +58,12 @@ void Blur::setParameters(const Vector2 &size, int32_t steps, float *points) {
 
     for(int32_t i = 0; i < MAX_SAMPLES; i++) {
         m_points[i] = points[i];
+    }
+
+    if(m_pBlurMaterial) {
+        m_pBlurMaterial->setInteger("uni.steps", &m_steps);
+        m_pBlurMaterial->setFloat("uni.curve", m_points, MAX_SAMPLES);
+        m_pBlurMaterial->setVector2("uni.size", &m_size);
     }
 }
 
