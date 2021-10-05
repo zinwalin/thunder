@@ -1,5 +1,7 @@
 #include "commandbuffergl.h"
 
+#include <cstring>
+
 #include "agl.h"
 
 #include "resources/materialgl.h"
