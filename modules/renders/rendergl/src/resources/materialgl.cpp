@@ -2,7 +2,6 @@
 
 #include <cstring>
 
-
 #include "agl.h"
 #include "commandbuffergl.h"
 

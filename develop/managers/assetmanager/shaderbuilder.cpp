@@ -430,7 +430,7 @@ QVariantList ShaderBuilder::saveUniforms() const {
             } break;
             default: break;
         }
-        value.push_back(it.count);
+        value.push_back((uint32_t)it.count);
         result.push_back(value);
     }
     return result;
