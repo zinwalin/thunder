@@ -10,8 +10,7 @@
 #define OVERRIDE "rgbMap"
 
 Blur::Blur() :
-        m_pBlurMaterial(nullptr),
-        m_steps(1) {
+        m_pBlurMaterial(nullptr) {
 
     m_pMesh = Engine::loadResource<Mesh>(".embedded/plane.fbx/Plane001");
 
@@ -35,6 +34,7 @@ void Blur::draw(CommandBuffer &buffer, Texture *source, RenderTarget *target) {
 
         m_direction.x = 1.0f;
         m_direction.y = 0.0f;
+        m_pBlurMaterial->setVector2("uni.direction", &m_direction);
 
         m_pBlurMaterial->setTexture(OVERRIDE, source);
 
@@ -44,6 +44,7 @@ void Blur::draw(CommandBuffer &buffer, Texture *source, RenderTarget *target) {
 
         m_direction.x = 0.0f;
         m_direction.y = 1.0f;
+        m_pBlurMaterial->setVector2("uni.direction", &m_direction);
 
         m_pBlurMaterial->setTexture(OVERRIDE, m_tempTexture);
 
@@ -52,18 +53,11 @@ void Blur::draw(CommandBuffer &buffer, Texture *source, RenderTarget *target) {
     }
 }
 
-void Blur::setParameters(const Vector2 &size, int32_t steps, float *points) {
-    m_size = size;
-    m_steps = steps;
-
-    for(int32_t i = 0; i < MAX_SAMPLES; i++) {
-        m_points[i] = points[i];
-    }
-
+void Blur::setParameters(const Vector2 &size, int32_t steps, const float *points) {
     if(m_pBlurMaterial) {
-        m_pBlurMaterial->setInteger("uni.steps", &m_steps);
-        m_pBlurMaterial->setFloat("uni.curve", m_points, MAX_SAMPLES);
-        m_pBlurMaterial->setVector2("uni.size", &m_size);
+        m_pBlurMaterial->setInteger("uni.steps", &steps);
+        m_pBlurMaterial->setFloat("uni.curve", points);
+        m_pBlurMaterial->setVector2("uni.size", &size);
     }
 }
 

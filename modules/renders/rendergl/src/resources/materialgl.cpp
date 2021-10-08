@@ -361,36 +361,36 @@ bool MaterialInstanceGL::bind(CommandBufferGL *buffer, uint32_t layer) {
     return false;
 }
 
-void MaterialInstanceGL::setInteger(const char *name, int32_t *value, int32_t count) {
+void MaterialInstanceGL::setInteger(const char *name, const int32_t *value, int32_t count) {
     setValue(name, value);
 }
 
-void MaterialInstanceGL::setFloat(const char *name, float *value, int32_t count) {
+void MaterialInstanceGL::setFloat(const char *name, const float *value, int32_t count) {
     setValue(name, value);
 }
 
-void MaterialInstanceGL::setVector2(const char *name, Vector2 *value, int32_t count) {
+void MaterialInstanceGL::setVector2(const char *name, const Vector2 *value, int32_t count) {
     setValue(name, value);
 }
 
-void MaterialInstanceGL::setVector3(const char *name, Vector3 *value, int32_t count) {
+void MaterialInstanceGL::setVector3(const char *name, const Vector3 *value, int32_t count) {
     setValue(name, value);
 }
 
-void MaterialInstanceGL::setVector4(const char *name, Vector4 *value, int32_t count) {
+void MaterialInstanceGL::setVector4(const char *name, const Vector4 *value, int32_t count) {
     setValue(name, value);
 }
 
-void MaterialInstanceGL::setMatrix4(const char *name, Matrix4 *value, int32_t count) {
+void MaterialInstanceGL::setMatrix4(const char *name, const Matrix4 *value, int32_t count) {
     setValue(name, value);
 }
 
-void MaterialInstanceGL::setValue(const char *name, void *value) {
+void MaterialInstanceGL::setValue(const char *name, const void *value) {
     MaterialGL *material = static_cast<MaterialGL *>(m_material);
     for(auto &it : material->m_Uniforms) {
         if(it.name == name) {
             if(m_uniformBuffer) {
-                memcpy(&m_uniformBuffer[0] + it.offset, value, it.size);
+                memcpy(&m_uniformBuffer[it.offset], value, it.size);
                 m_uniformDirty = true;
             }
             break;

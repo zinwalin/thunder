@@ -158,14 +158,14 @@ public:
 
     Texture *texture(const char *name);
 
-    virtual void setInteger(const char *name, int32_t *value, int32_t count = 1);
+    virtual void setInteger(const char *name, const int32_t *value, int32_t count = 1);
 
-    virtual void setFloat(const char *name, float *value, int32_t count = 1);
-    virtual void setVector2(const char *name, Vector2 *value, int32_t count = 1);
-    virtual void setVector3(const char *name, Vector3 *value, int32_t count = 1);
-    virtual void setVector4(const char *name, Vector4 *value, int32_t count = 1);
+    virtual void setFloat(const char *name, const float *value, int32_t count = 1);
+    virtual void setVector2(const char *name, const Vector2 *value, int32_t count = 1);
+    virtual void setVector3(const char *name, const Vector3 *value, int32_t count = 1);
+    virtual void setVector4(const char *name, const Vector4 *value, int32_t count = 1);
 
-    virtual void setMatrix4(const char *name, Matrix4 *value, int32_t count = 1);
+    virtual void setMatrix4(const char *name, const Matrix4 *value, int32_t count = 1);
 
     virtual void setTexture(const char *name, Texture *value);
 

@@ -27,37 +27,37 @@ Texture *MaterialInstance::texture(const char *name) {
     return nullptr;
 }
 
-void MaterialInstance::setInteger(const char *name, int32_t *value, int32_t count) {
+void MaterialInstance::setInteger(const char *name, const int32_t *value, int32_t count) {
     A_UNUSED(name);
     A_UNUSED(value);
     A_UNUSED(count);
 }
 
-void MaterialInstance::setFloat(const char *name, float *value, int32_t count) {
+void MaterialInstance::setFloat(const char *name, const float *value, int32_t count) {
     A_UNUSED(name);
     A_UNUSED(value);
     A_UNUSED(count);
 }
 
-void MaterialInstance::setVector2(const char *name, Vector2 *value, int32_t count) {
+void MaterialInstance::setVector2(const char *name, const Vector2 *value, int32_t count) {
     A_UNUSED(name);
     A_UNUSED(value);
     A_UNUSED(count);
 }
 
-void MaterialInstance::setVector3(const char *name, Vector3 *value, int32_t count) {
+void MaterialInstance::setVector3(const char *name, const Vector3 *value, int32_t count) {
     A_UNUSED(name);
     A_UNUSED(value);
     A_UNUSED(count);
 }
 
-void MaterialInstance::setVector4(const char *name, Vector4 *value, int32_t count) {
+void MaterialInstance::setVector4(const char *name, const Vector4 *value, int32_t count) {
     A_UNUSED(name);
     A_UNUSED(value);
     A_UNUSED(count);
 }
 
-void MaterialInstance::setMatrix4(const char *name, Matrix4 *value, int32_t count) {
+void MaterialInstance::setMatrix4(const char *name, const Matrix4 *value, int32_t count) {
     A_UNUSED(name);
     A_UNUSED(value);
     A_UNUSED(count);
